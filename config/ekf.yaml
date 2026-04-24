@@ -1,0 +1,24 @@
+# FR-4.2 — EKF node parameters.
+# All values declared via declare_parameter in ekf_node.cpp; loaded from this file at launch.
+# Implemented in task T2.4.
+
+process_noise:
+  # Longitudinal acceleration noise std (m/s^2).
+  sigma_a_mps2: 1.0
+  # Yaw rate noise std (rad/s).
+  sigma_psi_dot_rps: 0.1
+
+measurement_noise:
+  # GPS bearing only used above this speed (below this, bearing is noise at rest).
+  bearing_min_speed_mps: 2.0
+  # Below this speed, use magnetometer for heading prior instead of GPS bearing.
+  mag_only_fallback_speed_mps: 1.0
+
+outlier_gate:
+  # Chi-squared confidence level for Mahalanobis innovation gate.
+  chi2_confidence: 0.99
+
+initialization:
+  # Seed state from the first N good GPS fixes.
+  method: first_gps
+  wait_gps_count: 3

@@ -1,0 +1,19 @@
+# Raw data and outputs — never baked into images
+Data/
+data/
+out/
+
+# Git history
+.git/
+
+# Python caches
+__pycache__/
+*.py[cod]
+.ruff_cache/
+.mypy_cache/
+.pytest_cache/
+*.egg-info/
+
+# Editor artifacts
+.vscode/
+.idea/

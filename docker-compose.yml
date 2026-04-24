@@ -1,0 +1,35 @@
+# FR-7.3 — Local dev topology mirroring EKS: Python + ROS 2 + Valhalla.
+# Implemented in task T0.2. Stub only.
+version: "3.9"
+services:
+  python:
+    image: rct-python:dev
+    build:
+      context: .
+      dockerfile: docker/python.Dockerfile
+    volumes:
+      - .:/workspace
+      - ./out:/out
+    networks: [rct-net]
+
+  ros2:
+    image: rct-ros2:dev
+    build:
+      context: .
+      dockerfile: docker/ros2.Dockerfile
+    volumes:
+      - .:/workspace
+      - ./out:/out
+    networks: [rct-net]
+
+  valhalla:
+    image: ghcr.io/gis-ops/docker-valhalla/valhalla:latest
+    volumes:
+      - ./docker/valhalla:/custom_files
+    ports:
+      - "8002:8002"
+    networks: [rct-net]
+
+networks:
+  rct-net:
+    driver: bridge

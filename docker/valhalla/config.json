@@ -1,0 +1,4 @@
+{
+  "_comment": "Valhalla tile configuration for North Carolina. Populated in task T4.1.",
+  "_tiles": "NC OSM extract from Geofabrik — download documented in docker/valhalla/README.md"
+}

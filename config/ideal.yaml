@@ -1,0 +1,28 @@
+# FR-9 — Ideal driver policy parameters.
+# Implemented in tasks T4.1 – T4.4.
+
+# Kinematic limits for the ideal driver (from PRD §5.4).
+limits:
+  # Max longitudinal acceleration (m/s^2) — gentle acceleration.
+  max_accel_lon_mps2: 1.5
+  # Max longitudinal deceleration (m/s^2) — firm but not harsh.
+  max_decel_lon_mps2: 2.5
+  # Max lateral acceleration in turns (m/s^2).
+  max_accel_lat_mps2: 2.0
+  # Max jerk (m/s^3).
+  max_jerk_mps3: 2.0
+
+# Valhalla Meili map-matching endpoint (local Docker service).
+valhalla:
+  endpoint: http://localhost:8002/trace_attributes
+  # Sub-sample fused trajectory to this rate before sending to Valhalla.
+  input_rate_hz: 5
+
+# Reference path resampling.
+path:
+  # Arc-length step for centerline resampling (meters).
+  resample_step_m: 1.0
+  # Rolling window for curvature smoothing at OSM node kinks (meters).
+  curvature_smooth_window_m: 5.0
+  # Kink detection threshold: |kappa| above this triggers smoothing.
+  kink_kappa_threshold_1pm: 0.1

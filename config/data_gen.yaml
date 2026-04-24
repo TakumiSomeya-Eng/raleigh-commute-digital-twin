@@ -1,0 +1,30 @@
+# FR-1.3, FR-2 — Data generation and ingestion configuration.
+# Implemented in tasks T1.2 (ENU anchor), T1.4 (noise fit), T1.5 (synth).
+
+# Local ENU anchor — corridor centroid (flat-earth projection valid < 10 km).
+enu_anchor:
+  lat0_deg: 35.773
+  lon0_deg: -78.610
+
+# Target grid rate after clock alignment (Hz).
+target_rate_hz: 100
+
+# Warm-up period to drop at start of each recording (seconds).
+warmup_s: 0.5
+
+# Synthetic scenario generation defaults.
+synth:
+  # Default random seed (overridden per-scenario in scenario_manifest.json).
+  default_seed: 42
+  # Default number of scenarios for batch generation.
+  default_n: 10
+
+# KS-test gate threshold: fraction of channels that must pass p > 0.05.
+ks_gate_pass_rate: 0.80
+ks_gate_p_threshold: 0.05
+
+# Trace name → raw data directory mapping.
+# Usage: make data TRACE=day1  →  reads Data/Saint_Marys_Street-2026-04-16_13-27-45/
+traces:
+  day1: Data/Saint_Marys_Street-2026-04-16_13-27-45
+  day2: Data/Saint_Marys_Street-2026-04-17_13-20-03

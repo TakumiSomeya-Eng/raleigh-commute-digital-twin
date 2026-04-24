@@ -1,0 +1,50 @@
+# FR-10 — Scoring component weights and tip band lookup.
+# All values are data, not code — tuneable without code changes.
+# Implemented in tasks T4.5 – T4.7.
+
+# Component weights (must sum to 1.0).
+weights:
+  jerk: 0.30
+  harsh_brake: 0.20
+  lat_accel: 0.15
+  speed: 0.20
+  deviation: 0.10
+  lane_change: 0.05
+
+# Per-component penalty thresholds.
+thresholds:
+  # Deceleration threshold for harsh braking events (m/s^2).
+  harsh_brake_decel_mps2: 3.5
+  # Minimum duration for a harsh braking event (seconds).
+  harsh_brake_min_duration_s: 0.3
+  # Speed tolerance band around posted limit (m/s); no penalty within.
+  # ~2 mph = 0.89 m/s.
+  speed_tolerance_mps: 0.89
+  # In-lane deviation threshold — deviations below this score ~0 (meters).
+  deviation_inlane_m: 1.5
+  # Yaw excursion threshold for lane-change detection (radians).
+  lane_change_yaw_delta_rad: 0.15
+  # Time window for yaw excursion (seconds).
+  lane_change_yaw_window_s: 2.0
+  # Minimum lateral displacement for lane-change confirmation (meters).
+  lane_change_lat_disp_m: 2.0
+
+# Tip band lookup table (PRD §5.5 defaults).
+# Bands are checked from top to bottom; first match wins.
+tip_bands:
+  - min_score: 90
+    max_score: 100
+    tip_pct: 25
+    label: "Excellent"
+  - min_score: 75
+    max_score: 89
+    tip_pct: 20
+    label: "Good"
+  - min_score: 60
+    max_score: 74
+    tip_pct: 15
+    label: "Fair"
+  - min_score: 0
+    max_score: 59
+    tip_pct: 10
+    label: "Poor — reconsider"

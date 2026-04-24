@@ -1,3 +1,50 @@
-# Will be properly populated by T0.1
-Data/
-out/
+# ── Raw trace data (never committed; too large and contains location data) ────
+/Data/
+/data/
+
+# ── All derived artifacts ─────────────────────────────────────────────────────
+/out/
+
+# ── Personal / generated config (not committed) ───────────────────────────────
+/config/ratings.yaml
+/config/noise_fit.yaml
+
+# ── ROS 2 bag files (except test fixtures) ────────────────────────────────────
+*.mcap
+!tests/fixtures/**/*.mcap
+
+# ── Virtual environments ──────────────────────────────────────────────────────
+venv/
+.venv/
+env/
+
+# ── Python build artifacts ────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.ruff_cache/
+.mypy_cache/
+dist/
+*.egg
+
+# ── C++ / colcon build artifacts ─────────────────────────────────────────────
+build/
+install/
+log/
+*.o
+*.so
+*.a
+
+# ── Docker ────────────────────────────────────────────────────────────────────
+.docker/
+
+# ── Editor artifacts ─────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*~

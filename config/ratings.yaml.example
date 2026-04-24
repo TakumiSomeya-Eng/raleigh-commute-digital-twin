@@ -1,0 +1,10 @@
+# FR-11.5 — Subjective ride ratings (1-5 scale).
+# Copy this file to config/ratings.yaml (gitignored) and fill in after each ride.
+# Write the rating BEFORE running make score — blind to the tool output.
+#
+# Format: trip_id: rating
+# Rating scale: 1 = awful, 3 = acceptable, 5 = great
+
+# Example:
+# 2026-05-01_trip1: 4
+# 2026-05-03_trip2: 2

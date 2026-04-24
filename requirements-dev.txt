@@ -1,0 +1,9 @@
+# Development and test dependencies - not needed in production images.
+# Pin to the same minor versions as TRD s5 to keep CI deterministic.
+-r requirements.txt
+
+pytest==8.2.2
+pytest-cov==5.0.0
+ruff==0.5.0
+mypy==1.10.0
+pre-commit==3.7.1

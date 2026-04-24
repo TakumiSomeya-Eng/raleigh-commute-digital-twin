@@ -1,0 +1,12 @@
+# FR-9.2 — Hand-coded speed limits for known Raleigh corridors.
+# Used when OSM maxspeed tags are absent.
+# Populated during task T4.2 after running map-matching on day2.
+# Implemented in task T4.2.
+
+# Urban default when a way is unrecognized (30 mph = 13.4 m/s).
+urban_default_mps: 13.4
+
+# Per-corridor overrides keyed by OSM way ID.
+# Format: <osm_way_id>: <speed_limit_mps>
+# Populated after T4.1 runs on day2 and identifies way IDs.
+corridors: {}

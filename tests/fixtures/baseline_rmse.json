@@ -1,0 +1,7 @@
+{
+  "_comment": "Generated once from a known-good run. Updated only with a 'baseline:' PR. See TRD §6.4.",
+  "overall_rmse_m": null,
+  "gps_only_rmse_m": null,
+  "improvement_pct": null,
+  "s1_pass": null
+}

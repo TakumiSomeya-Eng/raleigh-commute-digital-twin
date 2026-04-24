@@ -1,0 +1,25 @@
+# FR-5.2 — UKF node parameters.
+# Shared noise sections reference ekf.yaml via YAML anchors (populated in T2.7).
+# Implemented in task T2.7.
+
+sigma_points:
+  # Julier-Uhlmann scaling parameters.
+  alpha: 0.001
+  beta: 2.0
+  kappa: 0.0
+
+# Noise parameters identical to EKF (populated with anchors in T2.7).
+process_noise:
+  sigma_a_mps2: 1.0
+  sigma_psi_dot_rps: 0.1
+
+measurement_noise:
+  bearing_min_speed_mps: 2.0
+  mag_only_fallback_speed_mps: 1.0
+
+outlier_gate:
+  chi2_confidence: 0.99
+
+initialization:
+  method: first_gps
+  wait_gps_count: 3
