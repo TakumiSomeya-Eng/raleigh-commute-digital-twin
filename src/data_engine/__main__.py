@@ -112,6 +112,44 @@ def _cmd_fit(args: argparse.Namespace) -> int:
     return StageExitCode.SUCCESS
 
 
+def _cmd_synth(args: argparse.Namespace) -> int:
+    """Execute the synthetic generation pipeline (FR-2.2)."""
+    from data_engine.synth import generate_batch, write_manifest
+
+    base_pq = Path(args.out_dir) / args.base / "aligned_100hz.parquet"
+    if not base_pq.exists():
+        sys.stderr.write(f"[FR-2.2 synth] ERROR  not found: {base_pq}\n")
+        return StageExitCode.USER_ERROR
+
+    noise_yaml = (
+        Path(args.noise_yaml) if args.noise_yaml else Path("config") / f"noise_fit_{args.base}.yaml"
+    )
+    if not noise_yaml.exists():
+        sys.stderr.write(f"[FR-2.2 synth] ERROR  not found: {noise_yaml}\n")
+        return StageExitCode.USER_ERROR
+
+    out_dir = Path(args.out_dir)
+    results = generate_batch(
+        base_pq,
+        noise_yaml,
+        out_dir,
+        args.base,
+        n=args.n,
+        seed0=args.seed,
+        workers=args.workers,
+    )
+
+    manifest_path = out_dir / "synthetic" / "scenario_manifest.json"
+    write_manifest(results, manifest_path, args.base)
+
+    now = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    sys.stdout.write(
+        f"[{now}] [FR-2.2 synth] INFO  "
+        f"{len(results)} scenarios from {args.base!r}  → {manifest_path}\n"
+    )
+    return StageExitCode.SUCCESS
+
+
 def _cmd_stub(name: str) -> int:
     now = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     sys.stdout.write(f"[{now}] [data_engine {name}] INFO  Not yet implemented\n")
@@ -141,15 +179,28 @@ def main(argv: list[str] | None = None) -> int:
         help="Output YAML path template (trace name is appended before extension)",
     )
 
-    for cmd in ("synth", "ks"):
-        subs.add_parser(cmd, help="Not yet implemented")
+    p_synth = subs.add_parser("synth", help="FR-2.2: generate synthetic scenarios")
+    p_synth.add_argument("--base", required=True, help="Base trace name, e.g. day2")
+    p_synth.add_argument("--n", type=int, default=10, help="Number of scenarios")
+    p_synth.add_argument("--seed", type=int, default=0, help="Seed for scenario 0")
+    p_synth.add_argument("--out-dir", default="out", help="Output root")
+    p_synth.add_argument(
+        "--noise-yaml",
+        default=None,
+        help="Noise YAML (default: config/noise_fit_{base}.yaml)",
+    )
+    p_synth.add_argument("--workers", type=int, default=1, help="Parallel worker processes")
+
+    subs.add_parser("ks", help="Not yet implemented")
 
     args = parser.parse_args(argv)
     if args.command == "ingest":
         return _cmd_ingest(args)
     if args.command == "fit":
         return _cmd_fit(args)
-    if args.command in ("synth", "ks"):
+    if args.command == "synth":
+        return _cmd_synth(args)
+    if args.command == "ks":
         return _cmd_stub(args.command)
     parser.print_help()
     return StageExitCode.USER_ERROR
