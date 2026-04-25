@@ -1,70 +1,126 @@
-# Raleigh Commute Digital Twin — top-level Makefile
-# Full implementation: task T0.4.
-# Trace name → raw data directory mapping (agreed in project setup).
-TRACE_day1 := Data/Saint_Marys_Street-2026-04-16_13-27-45
-TRACE_day2 := Data/Saint_Marys_Street-2026-04-17_13-20-03
+# Raleigh Commute Digital Twin -- top-level Makefile (T0.4 / FR-7.1)
+#
+# Usage:
+#   make help
+#   make test
+#   make clean
+#   make data  TRACE=day2
+#   make fuse  TRACE=day2 FILTER=ukf
+#   make synth N_SCENARIOS=20
 
-# Resolve TRACE variable to DATA_DIR.  Usage: make data TRACE=day2
-DATA_DIR := $(TRACE_$(TRACE))
+# ---------------------------------------------------------------------------
+# Variables
+# ---------------------------------------------------------------------------
 
-# Default values
-TRACE    ?= day2
-FILTER   ?= ekf
+TRACE       ?= day2
+FILTER      ?= ekf
 N_SCENARIOS ?= 10
 
+# Map TRACE names to raw-data subdirectories under data/.
+TRACE_day1 := data/Saint_Marys_Street-2026-04-16_13-27-45
+TRACE_day2 := data/Saint_Marys_Street-2026-04-17_13-20-03
+DATA_DIR    := $(TRACE_$(TRACE))
+
+# ---------------------------------------------------------------------------
+# Phony targets
+# ---------------------------------------------------------------------------
+
 .PHONY: help bootstrap data synth bag fuse eval ideal score report deploy clean test
+
+# ---------------------------------------------------------------------------
+# help -- scans ## comments to self-document all targets
+# ---------------------------------------------------------------------------
 
 ## help        : List all targets with descriptions
 help:
 	@grep -E '^## ' $(MAKEFILE_LIST) | sed 's/^## /  /'
 
-## bootstrap   : Install pre-commit hooks, verify Docker (T0.4 / T7.4)
-bootstrap:
-	@echo "[T0.4] bootstrap — not yet implemented"
+# ---------------------------------------------------------------------------
+# clean -- idempotent; rm -rf is a no-op when dirs do not exist
+# ---------------------------------------------------------------------------
 
-## data        : Ingest raw CSVs → aligned Parquet  (T1.3)  TRACE=day1|day2
-data:
-	@echo "[T1.3] data TRACE=$(TRACE) DATA_DIR=$(DATA_DIR) — not yet implemented"
-
-## synth       : Generate synthetic scenarios  (T1.5)
-synth:
-	@echo "[T1.5] synth N=$(N_SCENARIOS) — not yet implemented"
-
-## bag         : Convert Parquet → MCAP bag  (T2.1)  TRACE=...
-bag:
-	@echo "[T2.1] bag TRACE=$(TRACE) — not yet implemented"
-
-## fuse        : Run EKF/UKF fusion  (T2.5/T2.7)  TRACE=...  FILTER=ekf|ukf
-fuse:
-	@echo "[T2.5] fuse TRACE=$(TRACE) FILTER=$(FILTER) — not yet implemented"
-
-## eval        : Compute RMSE, NEES  (T3.2/T3.3)  TRACE=...  FILTER=...
-eval:
-	@echo "[T3.2] eval TRACE=$(TRACE) FILTER=$(FILTER) — not yet implemented"
-
-## ideal       : Map-match + synthesize ideal trajectory  (T4.1–T4.4)  TRACE=...
-ideal:
-	@echo "[T4.1] ideal TRACE=$(TRACE) — not yet implemented"
-
-## score       : Compute score.json  (T4.7)  TRACE=...
-score:
-	@echo "[T4.7] score TRACE=$(TRACE) — not yet implemented"
-
-## report      : Render HTML report  (T5.1)  TRACE=...
-report:
-	@echo "[T5.1] report TRACE=$(TRACE) — not yet implemented"
-
-## deploy      : Deploy to AWS  (Phase 2)
-deploy:
-	@echo "[Phase 2] deploy — deferred to Phase 2"
-
-## test        : Run pytest + ctest
-test:
-	pytest
-	@echo "[T0.4] ctest — not yet wired"
-
-## clean       : Remove out/ and build/
+## clean       : Remove out/ and build/ (idempotent)
 clean:
 	rm -rf out/ build/
-	mkdir -p out
-	@echo "[clean] Done."
+	@printf '[%s] [FR-7.1 clean] INFO  Removed out/ and build/\n' \
+		"$$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+# ---------------------------------------------------------------------------
+# test -- pytest (exit 5 = no tests yet -> OK) + ctest if build/ exists
+# ---------------------------------------------------------------------------
+
+## test        : Run pytest (Python) and ctest (C++); exit 0 with zero tests
+test:
+	@printf '[%s] [FR-8 test] INFO  Running pytest...\n' \
+		"$$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+	@pytest -q; code=$$?; \
+	[ "$$code" -eq 5 ] && \
+		printf '[%s] [FR-8 test] INFO  No tests collected yet -- OK\n' \
+		"$$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+	|| [ "$$code" -eq 0 ] \
+	|| exit $$code
+	@if [ -f build/CTestTestfile.cmake ]; then \
+		printf '[%s] [FR-8.2 test] INFO  Running ctest...\n' \
+			"$$(date -u +%Y-%m-%dT%H:%M:%SZ)"; \
+		cd build && ctest --output-on-failure; \
+	else \
+		printf '[%s] [FR-8.2 test] INFO  No C++ build found -- skipping ctest\n' \
+			"$$(date -u +%Y-%m-%dT%H:%M:%SZ)"; \
+	fi
+	@printf '[%s] [FR-8 test] INFO  Done\n' \
+		"$$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+# ---------------------------------------------------------------------------
+# Stub targets -- implemented in later tasks; all exit 0 so CI passes early
+# Log format: TRD sec.4.4  [ISO-8601Z] [FR-x.y stage] INFO  message
+# ---------------------------------------------------------------------------
+
+## bootstrap   : Set up dev environment (pre-commit, Docker images) (FR-7.4)
+bootstrap:
+	@printf '[%s] [FR-7.4 bootstrap] INFO  T0.4 bootstrap -- not yet implemented\n' \
+		"$$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+## data        : Ingest raw CSVs -> aligned_100hz.parquet (FR-1.5)  TRACE=day1|day2
+data:
+	@printf '[%s] [FR-1.5 data] INFO  T1.3 data TRACE=%s DATA_DIR=%s -- not yet implemented\n' \
+		"$$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$(TRACE)" "$(DATA_DIR)"
+
+## synth       : Generate synthetic scenarios + KS gate (FR-2.2/2.3)  N_SCENARIOS=10
+synth:
+	@printf '[%s] [FR-2.2 synth] INFO  T1.5 synth TRACE=%s N=%s -- not yet implemented\n' \
+		"$$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$(TRACE)" "$(N_SCENARIOS)"
+
+## bag         : Convert aligned Parquet -> MCAP bag (FR-3.1)  TRACE=...
+bag:
+	@printf '[%s] [FR-3.1 bag] INFO  T2.1 bag TRACE=%s -- not yet implemented\n' \
+		"$$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$(TRACE)"
+
+## fuse        : Run EKF/UKF sensor fusion (FR-4.2/5.2)  TRACE=...  FILTER=ekf|ukf
+fuse:
+	@printf '[%s] [FR-4.2 fuse] INFO  T2.5 fuse TRACE=%s FILTER=%s -- not yet implemented\n' \
+		"$$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$(TRACE)" "$(FILTER)"
+
+## eval        : Compute RMSE / NEES filter evaluation (FR-6.2)  TRACE=...  FILTER=...
+eval:
+	@printf '[%s] [FR-6.2 eval] INFO  T3.2 eval TRACE=%s FILTER=%s -- not yet implemented\n' \
+		"$$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$(TRACE)" "$(FILTER)"
+
+## ideal       : Map-match + synthesize ideal trajectory (FR-9)  TRACE=...
+ideal:
+	@printf '[%s] [FR-9.1 ideal] INFO  T4.1 ideal TRACE=%s -- not yet implemented\n' \
+		"$$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$(TRACE)"
+
+## score       : Compute score.json + tip lookup (FR-10.7)  TRACE=...
+score:
+	@printf '[%s] [FR-10.7 score] INFO  T4.7 score TRACE=%s FILTER=%s -- not yet implemented\n' \
+		"$$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$(TRACE)" "$(FILTER)"
+
+## report      : Render HTML report (FR-11.1)  TRACE=...
+report:
+	@printf '[%s] [FR-11.1 report] INFO  T5.1 report TRACE=%s -- not yet implemented\n' \
+		"$$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$(TRACE)"
+
+## deploy      : Deploy to AWS (Phase 2 -- deferred)
+deploy:
+	@printf '[%s] [Phase-2 deploy] INFO  deploy -- deferred to Phase 2\n' \
+		"$$(date -u +%Y-%m-%dT%H:%M:%SZ)"
