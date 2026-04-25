@@ -82,8 +82,10 @@ bootstrap:
 
 ## data        : Ingest raw CSVs -> aligned_100hz.parquet (FR-1.5)  TRACE=day1|day2
 data:
-	@printf '[%s] [FR-1.5 data] INFO  T1.3 data TRACE=%s DATA_DIR=%s -- not yet implemented\n' \
-		"$$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$(TRACE)" "$(DATA_DIR)"
+	python -m data_engine ingest \
+		--trace    "$(TRACE)" \
+		--data-dir "$(DATA_DIR)" \
+		--out-dir  out
 
 ## synth       : Generate synthetic scenarios + KS gate (FR-2.2/2.3)  N_SCENARIOS=10
 synth:

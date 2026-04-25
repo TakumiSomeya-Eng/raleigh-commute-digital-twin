@@ -21,6 +21,9 @@ ignore = [
     # RUF002: docstring contains ambiguous unicode (en-dash, Greek letters).
     # These are intentional in range notation (FR-1 -- FR-2) and symbol names (rho).
     "RUF002",
+    # UP017: use datetime.UTC alias introduced in Python 3.11.
+    # Local dev may run 3.10; keep datetime.timezone.utc for portability.
+    "UP017",
 ]
 select = [
     "E",    # pycodestyle errors
