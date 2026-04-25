@@ -1,33 +1,92 @@
-# FR-12.5 / T0.5 -- CI pipeline (lint + test).
-# Stub only -- implemented in task T0.5.
+# TRD sec.6.6 -- CI pipeline: lint + Python unit + C++ unit + integration.
+# Triggers on pull_request and push to main.
+# Target: all four jobs complete in < 5 min on a fresh runner.
 name: CI
 
 on:
   pull_request:
   push:
-    branches: [main, master]
+    branches: [main]
 
 jobs:
+  # ---------------------------------------------------------------------------
+  # lint: pre-commit run --all-files (ruff, clang-format, hadolint, yamllint...)
+  # ---------------------------------------------------------------------------
   lint:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
-      - run: echo "Lint -- implemented in T0.5"
 
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11.9"
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/pre-commit
+          key: pre-commit-${{ runner.os }}-${{ hashFiles('.pre-commit-config.yaml') }}
+
+      - name: Install pre-commit
+        run: pip install pre-commit==3.7.1
+
+      - name: Lint (pre-commit run --all-files)
+        run: pre-commit run --all-files
+
+  # ---------------------------------------------------------------------------
+  # py-unit: pytest; exit 5 (no tests collected) is treated as success
+  # ---------------------------------------------------------------------------
   py-unit:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
-      - run: echo "Python unit tests -- implemented in T0.5"
 
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11.9"
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+
+      - name: Install dev dependencies
+        run: pip install -r requirements-dev.txt
+
+      - name: Run pytest
+        run: >-
+          pytest -q ||
+          { code=$?; [ "$code" -eq 5 ] &&
+          echo "No tests collected -- OK" ||
+          exit "$code"; }
+
+  # ---------------------------------------------------------------------------
+  # cpp-unit: colcon test inside osrf/ros:jazzy-desktop
+  # Skipped automatically until src/localization/CMakeLists.txt exists (T2.2+)
+  # ---------------------------------------------------------------------------
   cpp-unit:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    container: osrf/ros:jazzy-desktop
     steps:
       - uses: actions/checkout@v4
-      - run: echo "C++ unit tests -- implemented in T0.5"
 
+      - name: Build and test with colcon
+        shell: bash
+        run: |
+          . /opt/ros/jazzy/setup.bash
+          if [ -f src/localization/CMakeLists.txt ]; then
+            colcon build --packages-select localization
+            colcon test --packages-select localization \
+              --event-handlers console_direct+
+          else
+            echo "No C++ packages yet -- skipping colcon (T2.2+)"
+          fi
+
+  # ---------------------------------------------------------------------------
+  # integration: placeholder until T2.5+ (bag replay + live ROS services)
+  # ---------------------------------------------------------------------------
   integration:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
-      - run: echo "Integration tests -- implemented in T0.5"
+
+      - name: Placeholder
+        run: echo "Integration tests -- not yet wired (T2.5+)"
