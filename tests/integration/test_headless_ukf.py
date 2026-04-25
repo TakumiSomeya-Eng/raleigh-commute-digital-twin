@@ -2,6 +2,7 @@
 
 Implemented in task T2.7.
 """
+
 import pytest
 
 pytestmark = pytest.mark.integration

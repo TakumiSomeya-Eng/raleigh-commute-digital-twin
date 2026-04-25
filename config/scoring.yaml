@@ -1,6 +1,6 @@
-# FR-10 — Scoring component weights and tip band lookup.
-# All values are data, not code — tuneable without code changes.
-# Implemented in tasks T4.5 – T4.7.
+# FR-10 -- Scoring component weights and tip band lookup.
+# All values are data, not code -- tuneable without code changes.
+# Implemented in tasks T4.5 - T4.7.
 
 # Component weights (must sum to 1.0).
 weights:
@@ -20,7 +20,7 @@ thresholds:
   # Speed tolerance band around posted limit (m/s); no penalty within.
   # ~2 mph = 0.89 m/s.
   speed_tolerance_mps: 0.89
-  # In-lane deviation threshold — deviations below this score ~0 (meters).
+  # In-lane deviation threshold -- deviations below this score ~0 (meters).
   deviation_inlane_m: 1.5
   # Yaw excursion threshold for lane-change detection (radians).
   lane_change_yaw_delta_rad: 0.15
@@ -29,7 +29,7 @@ thresholds:
   # Minimum lateral displacement for lane-change confirmation (meters).
   lane_change_lat_disp_m: 2.0
 
-# Tip band lookup table (PRD §5.5 defaults).
+# Tip band lookup table (PRD sec.5.5 defaults).
 # Bands are checked from top to bottom; first match wins.
 tip_bands:
   - min_score: 90
@@ -47,4 +47,4 @@ tip_bands:
   - min_score: 0
     max_score: 59
     tip_pct: 10
-    label: "Poor — reconsider"
+    label: "Poor -- reconsider"

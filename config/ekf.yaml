@@ -1,4 +1,4 @@
-# FR-4.2 — EKF node parameters.
+# FR-4.2 -- EKF node parameters.
 # All values declared via declare_parameter in ekf_node.cpp; loaded from this file at launch.
 # Implemented in task T2.4.
 

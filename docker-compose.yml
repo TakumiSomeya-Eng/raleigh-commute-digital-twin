@@ -1,6 +1,6 @@
-# FR-7.3 — Local dev topology: Python worker + ROS 2 worker + Valhalla map-matcher.
+# FR-7.3 -- Local dev topology: Python worker + ROS 2 worker + Valhalla map-matcher.
 # All three services share the rct-net bridge network.
-# MinIO (S3-parity) is commented out — optional in Phase 1 per TRD §5.
+# MinIO (S3-parity) is commented out -- optional in Phase 1 per TRD sec.5.
 
 services:
   python:
@@ -28,7 +28,7 @@ services:
       - rct-net
 
   valhalla:
-    # Valhalla 3.5.x self-hosted map-matcher (TRD §5).
+    # Valhalla 3.5.x self-hosted map-matcher (TRD sec.5).
     # NC tiles are downloaded or pre-generated on first run per T4.1.
     image: ghcr.io/gis-ops/docker-valhalla/valhalla:3.5.1
     volumes:
@@ -44,19 +44,19 @@ services:
     networks:
       - rct-net
 
-  # minio:
-  #   image: minio/minio:RELEASE.2025-01-20T14-49-07Z
-  #   command: server /data --console-address ":9001"
-  #   environment:
-  #     MINIO_ROOT_USER: minioadmin
-  #     MINIO_ROOT_PASSWORD: minioadmin
-  #   ports:
-  #     - "9000:9000"
-  #     - "9001:9001"
-  #   volumes:
-  #     - minio-data:/data
-  #   networks:
-  #     - rct-net
+# minio:
+#   image: minio/minio:RELEASE.2025-01-20T14-49-07Z
+#   command: server /data --console-address ":9001"
+#   environment:
+#     MINIO_ROOT_USER: minioadmin
+#     MINIO_ROOT_PASSWORD: minioadmin
+#   ports:
+#     - "9000:9000"
+#     - "9001:9001"
+#   volumes:
+#     - minio-data:/data
+#   networks:
+#     - rct-net
 
 networks:
   rct-net:

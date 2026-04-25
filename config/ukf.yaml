@@ -1,4 +1,4 @@
-# FR-5.2 — UKF node parameters.
+# FR-5.2 -- UKF node parameters.
 # Shared noise sections reference ekf.yaml via YAML anchors (populated in T2.7).
 # Implemented in task T2.7.
 

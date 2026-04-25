@@ -24,6 +24,7 @@ Each functional requirement (FR) has the following fields:
 | **Dependencies** | Other FR IDs, or `—` |
 
 **Priority semantics:**
+
 - **MUST**: Required for the tool to do its stated job (PRD §0 one-line pitch). Absence = broken.
 - **SHOULD**: Required for the tool to be *good*. Absence = works but embarrassing.
 - **COULD**: Nice to have. Absence = no one notices.

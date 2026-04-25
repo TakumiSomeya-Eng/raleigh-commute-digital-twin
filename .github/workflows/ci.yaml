@@ -1,5 +1,5 @@
-# FR-12.5 / T0.5 — CI pipeline (lint + test).
-# Stub only — implemented in task T0.5.
+# FR-12.5 / T0.5 -- CI pipeline (lint + test).
+# Stub only -- implemented in task T0.5.
 name: CI
 
 on:
@@ -12,22 +12,22 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: echo "Lint — implemented in T0.5"
+      - run: echo "Lint -- implemented in T0.5"
 
   py-unit:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: echo "Python unit tests — implemented in T0.5"
+      - run: echo "Python unit tests -- implemented in T0.5"
 
   cpp-unit:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: echo "C++ unit tests — implemented in T0.5"
+      - run: echo "C++ unit tests -- implemented in T0.5"
 
   integration:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: echo "Integration tests — implemented in T0.5"
+      - run: echo "Integration tests -- implemented in T0.5"

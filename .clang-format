@@ -1,0 +1,4 @@
+---
+# TRD §4.7 — C++ formatter: Google style base, 100-column limit.
+BasedOnStyle: Google
+ColumnLimit: 100

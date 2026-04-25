@@ -1,0 +1,11 @@
+# Force LF line endings for all text files so yamllint and other tools
+# work consistently on Windows, macOS, and Linux.
+* text=auto eol=lf
+
+# Binaries -- no line-ending conversion.
+*.parquet binary
+*.mcap    binary
+*.png     binary
+*.jpg     binary
+*.jpeg    binary
+*.pdf     binary

@@ -1,0 +1,13 @@
+# TRD section 4.7 -- yamllint configuration.
+extends: default
+rules:
+  # TRD NFR allows up to 120 columns in YAML (relaxed from default 80).
+  line-length:
+    max: 120
+  # No mandatory document-start marker (---) in this project's YAML files.
+  document-start: disable
+  # Allow both true/false and yes/no truthy forms used in Compose and Actions files.
+  truthy: disable
+  # Require exactly one space between # and comment text.
+  comments:
+    min-spaces-from-content: 1
