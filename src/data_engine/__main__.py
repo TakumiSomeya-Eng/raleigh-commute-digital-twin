@@ -86,6 +86,32 @@ def _cmd_ingest(args: argparse.Namespace) -> int:
     return StageExitCode.SUCCESS
 
 
+def _cmd_fit(args: argparse.Namespace) -> int:
+    """Execute the noise-fitting pipeline (FR-2.1)."""
+    from data_engine.noise_fit import fit_trip, write_noise_fit_yaml
+
+    trace_names = [t.strip() for t in args.traces.split(",")]
+    yaml_out = Path(args.yaml_out)
+
+    for trace in trace_names:
+        pq_path = Path(args.out_dir) / trace / "aligned_100hz.parquet"
+        if not pq_path.exists():
+            sys.stderr.write(f"[FR-2.1 fit] ERROR  not found: {pq_path}\n")
+            return StageExitCode.USER_ERROR
+
+        fits = fit_trip(pq_path)
+
+        out = yaml_out.parent / f"{yaml_out.stem}_{trace}{yaml_out.suffix}"
+        write_noise_fit_yaml(fits, out, trip_id=trace)
+
+        now = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        sys.stdout.write(
+            f"[{now}] [FR-2.1 fit] INFO  " f"{len(fits)} channels fitted for {trace!r}  → {out}\n"
+        )
+
+    return StageExitCode.SUCCESS
+
+
 def _cmd_stub(name: str) -> int:
     now = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     sys.stdout.write(f"[{now}] [data_engine {name}] INFO  Not yet implemented\n")
@@ -104,13 +130,26 @@ def main(argv: list[str] | None = None) -> int:
     p_in.add_argument("--config", default=None, help="Path to data_gen.yaml")
     p_in.add_argument("--dry-run", action="store_true", help="Print output path, do not write")
 
-    for cmd in ("fit", "synth", "ks"):
+    p_fit = subs.add_parser("fit", help="FR-2.1: fit noise distributions per channel")
+    p_fit.add_argument(
+        "--traces", required=True, help="Comma-separated trace names, e.g. day1,day2"
+    )
+    p_fit.add_argument("--out-dir", default="out", help="Root where aligned parquets live")
+    p_fit.add_argument(
+        "--yaml-out",
+        default="config/noise_fit.yaml",
+        help="Output YAML path template (trace name is appended before extension)",
+    )
+
+    for cmd in ("synth", "ks"):
         subs.add_parser(cmd, help="Not yet implemented")
 
     args = parser.parse_args(argv)
     if args.command == "ingest":
         return _cmd_ingest(args)
-    if args.command in ("fit", "synth", "ks"):
+    if args.command == "fit":
+        return _cmd_fit(args)
+    if args.command in ("synth", "ks"):
         return _cmd_stub(args.command)
     parser.print_help()
     return StageExitCode.USER_ERROR
