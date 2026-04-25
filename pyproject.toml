@@ -8,6 +8,9 @@ version = "0.1.0"
 description = "Raleigh Commute Digital Twin — Uber vs. My AI"
 requires-python = ">=3.11"
 
+[tool.setuptools.packages.find]
+where = ["src"]
+
 # ── Ruff (lint + format) ──────────────────────────────────────────────────────
 [tool.ruff]
 line-length = 100
@@ -45,6 +48,8 @@ warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = true
 disallow_incomplete_defs = true
+mypy_path = "src"
+plugins = ["pydantic.mypy"]
 
 # ── Pytest ────────────────────────────────────────────────────────────────────
 [tool.pytest.ini_options]
@@ -53,6 +58,7 @@ python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
 addopts = "--tb=short -q"
+pythonpath = ["src"]
 markers = [
     "integration: requires Docker services (Valhalla, ROS 2)",
     "slow: runs > 10 s",
