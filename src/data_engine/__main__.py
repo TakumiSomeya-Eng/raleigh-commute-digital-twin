@@ -150,6 +150,49 @@ def _cmd_synth(args: argparse.Namespace) -> int:
     return StageExitCode.SUCCESS
 
 
+def _cmd_ks(args: argparse.Namespace) -> int:
+    """Execute the KS-test gate (FR-2.3)."""
+    from data_engine.ks_test import run_ks_test, write_ks_report
+
+    cfg_path = Path(args.config) if args.config else _DEFAULT_CONFIG
+    p_threshold = 0.05
+    pass_rate = 0.80
+    try:
+        cfg = _load_config(cfg_path)
+        p_threshold = float(cfg.get("ks_gate_p_threshold", 0.05))
+        pass_rate = float(cfg.get("ks_gate_pass_rate", 0.80))
+    except (KeyError, FileNotFoundError):
+        pass
+
+    real_dir = Path(args.real)
+    synth_dir = Path(args.synth)
+    if not real_dir.exists():
+        sys.stderr.write(f"[FR-2.3 ks] ERROR  not found: {real_dir}\n")
+        return StageExitCode.USER_ERROR
+    if not synth_dir.exists():
+        sys.stderr.write(f"[FR-2.3 ks] ERROR  not found: {synth_dir}\n")
+        return StageExitCode.USER_ERROR
+
+    try:
+        report = run_ks_test(
+            real_dir, synth_dir, p_threshold=p_threshold, pass_rate_threshold=pass_rate
+        )
+    except ValueError as exc:
+        sys.stderr.write(f"[FR-2.3 ks] ERROR  {exc}\n")
+        return StageExitCode.USER_ERROR
+
+    out_path = Path(args.out) if args.out else synth_dir / "ks_report.json"
+    write_ks_report(report, out_path)
+
+    now = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    gate = "PASS" if report["gate_passed"] else "FAIL"
+    sys.stdout.write(
+        f"[{now}] [FR-2.3 ks] INFO  "
+        f"pass_rate={report['overall_pass_rate']:.2f}  gate={gate}  → {out_path}\n"
+    )
+    return StageExitCode.SUCCESS if report["gate_passed"] else StageExitCode.GATE_FAILURE
+
+
 def _cmd_stub(name: str) -> int:
     now = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     sys.stdout.write(f"[{now}] [data_engine {name}] INFO  Not yet implemented\n")
@@ -191,7 +234,11 @@ def main(argv: list[str] | None = None) -> int:
     )
     p_synth.add_argument("--workers", type=int, default=1, help="Parallel worker processes")
 
-    subs.add_parser("ks", help="Not yet implemented")
+    p_ks = subs.add_parser("ks", help="FR-2.3: KS-test gate real vs. synthetic")
+    p_ks.add_argument("--real", required=True, help="Real data directory (e.g. out/day2)")
+    p_ks.add_argument("--synth", required=True, help="Synthetic data root (e.g. out/synthetic)")
+    p_ks.add_argument("--out", default=None, help="Report path (default: <synth>/ks_report.json)")
+    p_ks.add_argument("--config", default=None, help="Path to data_gen.yaml")
 
     args = parser.parse_args(argv)
     if args.command == "ingest":
@@ -201,7 +248,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "synth":
         return _cmd_synth(args)
     if args.command == "ks":
-        return _cmd_stub(args.command)
+        return _cmd_ks(args)
     parser.print_help()
     return StageExitCode.USER_ERROR
 
