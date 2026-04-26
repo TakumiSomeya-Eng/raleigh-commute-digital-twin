@@ -1,10 +1,18 @@
-// FR-4.2 — Extended Kalman Filter ROS 2 node.
-// Subscribes: /gps/fix, /imu/data, /mag
-// Publishes:  /fused/odom (100 Hz), /fused/diagnostics (1 Hz)
+// FR-4.2 — Extended Kalman Filter ROS 2 node (T2.5 full implementation).
 //
-// T2.4 skeleton: parameters declared, subscriptions wired, GPS pass-through odom.
-// T2.5 will replace the pass-through with full EKF predict/update.
+// State vector: [px, py, v, psi, psi_dot]   (ENU metres, m/s, rad, rad/s)
+// Predict step : driven by IMU at 100 Hz (CTRV + a_lon control input)
+// Update steps : GPS position (2D) and IMU yaw-rate pseudo-measurement
+//
+// Measurement models
+//   GPS position  : z=[px,py],      H=I_{2×5}[:,0:2],  R = diag(σ_h², σ_h²)
+//   IMU yaw-rate  : z=ω_z,          H=[0,0,0,0,1],     R = ω_z variance (from msg covariance)
+//
+// Initialisation  : accumulate wait_gps_count GPS fixes, seed x from mean ENU position
+// Chi-squared gate: wraps both update steps
 
+#include <Eigen/Core>
+#include <Eigen/LU>
 #include <cmath>
 #include <nav_msgs/msg/odometry.hpp>
 #include <rclcpp/rclcpp.hpp>
@@ -12,12 +20,23 @@
 #include <sensor_msgs/msg/magnetic_field.hpp>
 #include <sensor_msgs/msg/nav_sat_fix.hpp>
 
+#include "localization/chi2_gate.hpp"
+#include "localization/ctrv_model.hpp"
+
 namespace localization {
+
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+using Vec5 = Eigen::Matrix<double, 5, 1>;
+using Mat5 = Eigen::Matrix<double, 5, 5>;
+using Vec2 = Eigen::Matrix<double, 2, 1>;
+using Mat2 = Eigen::Matrix<double, 2, 2>;
+using Mat25 = Eigen::Matrix<double, 2, 5>;
 
 // ---------------------------------------------------------------------------
 // ENU flat-earth projection  (mirrors Python data_engine/ingest.py §T1.3)
 // Anchor: lat0_deg=35.773, lon0_deg=-78.610  (config/data_gen.yaml)
-// Valid for corridor spans < 10 km (equirectangular approximation).
 // ---------------------------------------------------------------------------
 static constexpr double kR_EARTH_M = 6'371'000.0;
 static constexpr double kDeg2Rad = M_PI / 180.0;
@@ -25,10 +44,19 @@ static constexpr double kLat0_rad = 35.773 * kDeg2Rad;
 static constexpr double kLon0_rad = -78.610 * kDeg2Rad;
 
 static void latlon_to_enu(double lat_deg, double lon_deg, double& px_m, double& py_m) {
-  const double lat_rad = lat_deg * kDeg2Rad;
-  const double lon_rad = lon_deg * kDeg2Rad;
-  px_m = (lon_rad - kLon0_rad) * std::cos(kLat0_rad) * kR_EARTH_M;
-  py_m = (lat_rad - kLat0_rad) * kR_EARTH_M;
+  px_m = (lon_deg * kDeg2Rad - kLon0_rad) * std::cos(kLat0_rad) * kR_EARTH_M;
+  py_m = (lat_deg * kDeg2Rad - kLat0_rad) * kR_EARTH_M;
+}
+
+// ---------------------------------------------------------------------------
+// Process noise Q  (discrete-time, noise on a_lon and psi_dot rate)
+// Q = diag(0, 0, σ_a²·dt², 0, σ_ψ̇²·dt²)
+// ---------------------------------------------------------------------------
+static Mat5 build_Q(double sigma_a, double sigma_psi_dot, double dt) {
+  Mat5 Q = Mat5::Zero();
+  Q(kV, kV) = (sigma_a * dt) * (sigma_a * dt);
+  Q(kPsiDot, kPsiDot) = (sigma_psi_dot * dt) * (sigma_psi_dot * dt);
+  return Q;
 }
 
 // ---------------------------------------------------------------------------
@@ -39,14 +67,16 @@ class EkfNode : public rclcpp::Node {
  public:
   EkfNode() : Node("ekf_node") {
     declare_params();
+    load_params();
     log_params();
     create_subscriptions();
     create_publishers();
-    RCLCPP_INFO(get_logger(), "[FR-4.2 ekf] node started (T2.4 pass-through skeleton)");
+    RCLCPP_INFO(get_logger(), "[FR-4.2 ekf] node started — waiting for %d GPS fixes",
+                wait_gps_count_);
   }
 
  private:
-  // ---- parameter declaration -----------------------------------------------
+  // ---- parameters ----------------------------------------------------------
 
   void declare_params() {
     declare_parameter<double>("process_noise.sigma_a_mps2", 1.0);
@@ -58,20 +88,24 @@ class EkfNode : public rclcpp::Node {
     declare_parameter<int>("initialization.wait_gps_count", 3);
   }
 
+  void load_params() {
+    sigma_a_ = get_parameter("process_noise.sigma_a_mps2").as_double();
+    sigma_psi_dot_ = get_parameter("process_noise.sigma_psi_dot_rps").as_double();
+    bearing_min_speed_ = get_parameter("measurement_noise.bearing_min_speed_mps").as_double();
+    chi2_confidence_ = get_parameter("outlier_gate.chi2_confidence").as_double();
+    wait_gps_count_ = static_cast<int>(get_parameter("initialization.wait_gps_count").as_int());
+  }
+
   void log_params() {
-    RCLCPP_INFO(get_logger(), "[FR-4.2 ekf] sigma_a=%.3f  sigma_psi_dot=%.3f",
-                get_parameter("process_noise.sigma_a_mps2").as_double(),
-                get_parameter("process_noise.sigma_psi_dot_rps").as_double());
-    RCLCPP_INFO(get_logger(), "[FR-4.2 ekf] chi2_confidence=%.2f  init=%s  wait_gps=%ld",
-                get_parameter("outlier_gate.chi2_confidence").as_double(),
-                get_parameter("initialization.method").as_string().c_str(),
-                get_parameter("initialization.wait_gps_count").as_int());
+    RCLCPP_INFO(get_logger(), "[FR-4.2 ekf] sigma_a=%.3f  sigma_psi_dot=%.3f", sigma_a_,
+                sigma_psi_dot_);
+    RCLCPP_INFO(get_logger(), "[FR-4.2 ekf] chi2=%.2f  init=first_gps  wait_gps=%d",
+                chi2_confidence_, wait_gps_count_);
   }
 
   // ---- subscriptions -------------------------------------------------------
 
   void create_subscriptions() {
-    // SENSOR_DATA QoS: best-effort, keep-last 10 (TRD §2.4)
     auto sensor_qos =
         rclcpp::QoS(rclcpp::KeepLast(10)).reliability(rclcpp::ReliabilityPolicy::BestEffort);
 
@@ -90,50 +124,216 @@ class EkfNode : public rclcpp::Node {
   // ---- publishers ----------------------------------------------------------
 
   void create_publishers() {
-    // Reliable, keep-last 100 (TRD §2.4)
     auto odom_qos =
         rclcpp::QoS(rclcpp::KeepLast(100)).reliability(rclcpp::ReliabilityPolicy::Reliable);
     odom_pub_ = create_publisher<nav_msgs::msg::Odometry>("/fused/odom", odom_qos);
   }
 
-  // ---- callbacks -----------------------------------------------------------
+  // ---- GPS callback --------------------------------------------------------
 
   void on_gps(sensor_msgs::msg::NavSatFix::SharedPtr msg) {
-    // T2.4 pass-through: project GPS fix to ENU and publish directly.
-    // T2.5 will replace this with EKF update + predict.
-    double px_m = 0.0;
-    double py_m = 0.0;
-    latlon_to_enu(msg->latitude, msg->longitude, px_m, py_m);
+    double px = 0.0;
+    double py = 0.0;
+    latlon_to_enu(msg->latitude, msg->longitude, px, py);
 
+    if (!initialized_) {
+      // Accumulate init fixes.
+      init_positions_.push_back({px, py});
+      if (static_cast<int>(init_positions_.size()) < wait_gps_count_) {
+        return;
+      }
+      initialize_from_gps(px, py, msg->position_covariance[0]);
+      return;
+    }
+
+    // --- GPS position update (2D) ---
+    Vec2 z;
+    z << px, py;
+
+    Mat25 H = Mat25::Zero();
+    H(0, kPx) = 1.0;
+    H(1, kPy) = 1.0;
+
+    const double var_h = msg->position_covariance[0];  // σ_h² from NavSatFix
+    Mat2 R = Mat2::Identity() * var_h;
+
+    // Innovation and covariance.
+    const Vec2 innov = z - H * x_;
+    const Mat2 S = H * P_ * H.transpose() + R;
+
+    if (!passes_gate(innov, S, chi2_confidence_)) {
+      ++rejection_count_;
+      RCLCPP_DEBUG(get_logger(), "[FR-4.3 gate] GPS rejected  d2=%.1f  total=%d",
+                   (innov.transpose() * S.inverse() * innov)(0, 0), rejection_count_);
+      return;
+    }
+
+    const Eigen::Matrix<double, 5, 2> K = P_ * H.transpose() * S.inverse();
+    x_ += K * innov;
+    P_ = (Mat5::Identity() - K * H) * P_;
+    x_[kPsi] = std::remainder(x_[kPsi], 2.0 * M_PI);
+  }
+
+  // ---- IMU callback --------------------------------------------------------
+
+  void on_imu(sensor_msgs::msg::Imu::SharedPtr msg) {
+    const rclcpp::Time stamp(msg->header.stamp);
+
+    if (!initialized_) {
+      last_imu_stamp_ = stamp;
+      return;
+    }
+
+    // --- Predict step ---
+    const double dt = (stamp - last_imu_stamp_).seconds();
+    last_imu_stamp_ = stamp;
+
+    if (dt <= 0.0 || dt > 0.5) {
+      // Skip degenerate dt (out-of-order, first tick, or stale).
+      return;
+    }
+
+    // Longitudinal accel from forward body-frame component (gravity-removed approx).
+    const double a_lon = msg->linear_acceleration.x;
+
+    const Vec5 x_pred = localization::predict(x_, dt, a_lon);
+    const Mat5 F = localization::jacobian(x_, dt);
+    const Mat5 Q = build_Q(sigma_a_, sigma_psi_dot_, dt);
+
+    x_ = x_pred;
+    P_ = F * P_ * F.transpose() + Q;
+
+    // --- Yaw-rate pseudo-measurement from gz ---
+    const double r_yaw = msg->angular_velocity_covariance[8];  // gz variance (noise_fit YAML)
+    if (r_yaw > 0.0) {
+      const double z_yaw = msg->angular_velocity.z;
+
+      // H = [0,0,0,0,1]
+      Eigen::Matrix<double, 1, 5> H_yaw = Eigen::Matrix<double, 1, 5>::Zero();
+      H_yaw(0, kPsiDot) = 1.0;
+
+      const double innov_yaw = z_yaw - x_[kPsiDot];
+      const double S_yaw = (H_yaw * P_ * H_yaw.transpose())(0, 0) + r_yaw;
+
+      // 1D chi-squared gate.
+      Eigen::VectorXd innov_v(1);
+      innov_v(0) = innov_yaw;
+      Eigen::MatrixXd S_m(1, 1);
+      S_m(0, 0) = S_yaw;
+      if (passes_gate(innov_v, S_m, chi2_confidence_)) {
+        const double K_yaw_scalar = (P_ * H_yaw.transpose())(kPsiDot, 0) / S_yaw;
+        Eigen::Matrix<double, 5, 1> K_yaw = P_ * H_yaw.transpose() / S_yaw;
+        x_ += K_yaw * innov_yaw;
+        P_ = (Mat5::Identity() - K_yaw * H_yaw) * P_;
+        x_[kPsi] = std::remainder(x_[kPsi], 2.0 * M_PI);
+        (void)K_yaw_scalar;  // suppress unused-variable warning
+      }
+    }
+
+    // Clamp speed to non-negative (vehicle only drives forward in this model).
+    x_[kV] = std::max(0.0, x_[kV]);
+
+    publish_odom(stamp);
+  }
+
+  // ---- MagneticField callback (unused at T2.5) ----------------------------
+
+  void on_mag(sensor_msgs::msg::MagneticField::SharedPtr msg) {
+    (void)msg;  // T2.5: magnetometer heading init deferred to T2.7
+  }
+
+  // ---- Initialisation ------------------------------------------------------
+
+  void initialize_from_gps(double px, double py, double var_h) {
+    // Seed position from last GPS fix; estimate heading from accumulated track.
+    x_.setZero();
+    x_[kPx] = px;
+    x_[kPy] = py;
+    x_[kV] = 0.0;
+
+    // Estimate initial heading from first→last accumulated fix direction.
+    if (init_positions_.size() >= 2) {
+      const auto& p0 = init_positions_.front();
+      x_[kPsi] = std::atan2(py - p0[1], px - p0[0]);
+    }
+    x_[kPsiDot] = 0.0;
+
+    // Initial covariance: tight on position, loose on v/psi/psi_dot.
+    P_ = Mat5::Zero();
+    P_(kPx, kPx) = var_h;
+    P_(kPy, kPy) = var_h;
+    P_(kV, kV) = 4.0 * 4.0;        // ±4 m/s
+    P_(kPsi, kPsi) = M_PI * M_PI;  // ±π rad
+    P_(kPsiDot, kPsiDot) = 0.5 * 0.5;
+
+    initialized_ = true;
+    RCLCPP_INFO(get_logger(), "[FR-4.2 ekf] initialized  px=%.1f  py=%.1f  psi=%.3f", x_[kPx],
+                x_[kPy], x_[kPsi]);
+  }
+
+  // ---- Odometry publishing -------------------------------------------------
+
+  void publish_odom(const rclcpp::Time& stamp) {
     auto odom = nav_msgs::msg::Odometry();
-    odom.header.stamp = msg->header.stamp;
+    odom.header.stamp = stamp;
     odom.header.frame_id = "odom";
     odom.child_frame_id = "base_link";
-    odom.pose.pose.position.x = px_m;
-    odom.pose.pose.position.y = py_m;
-    odom.pose.pose.position.z = 0.0;
-    // Orientation identity quaternion (T2.5 will fill from fused psi).
-    odom.pose.pose.orientation.w = 1.0;
 
-    // Populate pose covariance from GPS horizontal_accuracy (TRD §2.3).
-    const double var_h = msg->position_covariance[0];  // sigma_h^2 from NavSatFix diagonal
-    odom.pose.covariance[0] = var_h;                   // x-x
-    odom.pose.covariance[7] = var_h;                   // y-y
-    odom.pose.covariance[35] = 1e-9;                   // yaw-yaw (unknown at T2.4)
+    odom.pose.pose.position.x = x_[kPx];
+    odom.pose.pose.position.y = x_[kPy];
+    odom.pose.pose.position.z = 0.0;
+
+    // Quaternion from heading psi (yaw-only, roll=pitch=0).
+    const double half_psi = x_[kPsi] * 0.5;
+    odom.pose.pose.orientation.w = std::cos(half_psi);
+    odom.pose.pose.orientation.x = 0.0;
+    odom.pose.pose.orientation.y = 0.0;
+    odom.pose.pose.orientation.z = std::sin(half_psi);
+
+    // Pose covariance (6×6 row-major: [x,y,z,roll,pitch,yaw]).
+    odom.pose.covariance.fill(0.0);
+    odom.pose.covariance[0] = P_(kPx, kPx);     // x-x
+    odom.pose.covariance[1] = P_(kPx, kPy);     // x-y
+    odom.pose.covariance[6] = P_(kPy, kPx);     // y-x
+    odom.pose.covariance[7] = P_(kPy, kPy);     // y-y
+    odom.pose.covariance[5] = P_(kPx, kPsi);    // x-yaw
+    odom.pose.covariance[30] = P_(kPsi, kPx);   // yaw-x
+    odom.pose.covariance[11] = P_(kPy, kPsi);   // y-yaw
+    odom.pose.covariance[31] = P_(kPsi, kPy);   // yaw-y
+    odom.pose.covariance[35] = P_(kPsi, kPsi);  // yaw-yaw
+    // Fill remaining diagonal with a small sentinel so downstream code sees valid variances.
+    odom.pose.covariance[14] = 1e-9;  // z-z
+    odom.pose.covariance[21] = 1e-9;  // roll-roll
+    odom.pose.covariance[28] = 1e-9;  // pitch-pitch
+
+    odom.twist.twist.linear.x = x_[kV];
+    odom.twist.twist.angular.z = x_[kPsiDot];
 
     odom_pub_->publish(odom);
   }
 
-  void on_imu(sensor_msgs::msg::Imu::SharedPtr msg) {
-    (void)msg;  // T2.5 will use this for predict step
-  }
-
-  void on_mag(sensor_msgs::msg::MagneticField::SharedPtr msg) {
-    (void)msg;  // T2.5 will use this for heading initialisation
-  }
-
   // ---- members -------------------------------------------------------------
 
+  // Parameters
+  double sigma_a_{1.0};
+  double sigma_psi_dot_{0.1};
+  double bearing_min_speed_{2.0};
+  double chi2_confidence_{0.99};
+  int wait_gps_count_{3};
+
+  // EKF state
+  Vec5 x_{Vec5::Zero()};
+  Mat5 P_{Mat5::Identity()};
+  bool initialized_{false};
+  int rejection_count_{0};
+
+  // Initialisation buffer
+  std::vector<std::array<double, 2>> init_positions_;
+
+  // Time tracking
+  rclcpp::Time last_imu_stamp_{0, 0, RCL_ROS_TIME};
+
+  // ROS handles
   rclcpp::Subscription<sensor_msgs::msg::NavSatFix>::SharedPtr gps_sub_;
   rclcpp::Subscription<sensor_msgs::msg::Imu>::SharedPtr imu_sub_;
   rclcpp::Subscription<sensor_msgs::msg::MagneticField>::SharedPtr mag_sub_;

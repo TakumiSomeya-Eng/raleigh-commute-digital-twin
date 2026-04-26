@@ -107,6 +107,12 @@ ks:
 		--synth out/synthetic \
 		--out   gates/p1_ks.json
 
+## fixture     : Generate tests/fixtures/tiny_{TRACE}_60s/trip.mcap (60 s slice)
+fixture:
+	PYTHONPATH="src" python scripts/make_fixtures.py \
+		--trace  "$(TRACE)" \
+		--out-dir tests/fixtures
+
 ## bag         : Convert aligned Parquet -> MCAP bag (FR-3.1)  TRACE=...
 bag:
 	PYTHONPATH="src" python -m bag_bridge.parquet_to_mcap \
