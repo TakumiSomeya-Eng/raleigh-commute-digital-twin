@@ -1,0 +1,60 @@
+{
+  "channels": {
+    "ax_mps2": {
+      "p_value": 0.142075,
+      "pass": true
+    },
+    "ay_mps2": {
+      "p_value": 0.393527,
+      "pass": true
+    },
+    "az_mps2": {
+      "p_value": 0.328115,
+      "pass": true
+    },
+    "gx_rps": {
+      "p_value": 0.029715,
+      "pass": false
+    },
+    "gy_rps": {
+      "p_value": 0.270474,
+      "pass": true
+    },
+    "gz_rps": {
+      "p_value": 0.00301,
+      "pass": false
+    },
+    "grav_x": {
+      "p_value": 0.270474,
+      "pass": true
+    },
+    "grav_y": {
+      "p_value": 0.923837,
+      "pass": true
+    },
+    "grav_z": {
+      "p_value": 0.712582,
+      "pass": true
+    },
+    "mag_x_uT": {
+      "p_value": 0.964652,
+      "pass": true
+    },
+    "mag_y_uT": {
+      "p_value": 0.328115,
+      "pass": true
+    },
+    "mag_z_uT": {
+      "p_value": 0.270474,
+      "pass": true
+    }
+  },
+  "overall_pass_rate": 0.8333,
+  "gate_threshold": 0.8,
+  "gate_passed": true,
+  "p_threshold": 0.05,
+  "max_comparison_n": 200,
+  "n_real_samples": 200,
+  "n_synth_samples": 200,
+  "generated_at_utc": "2026-04-26T03:31:51.615918+00:00"
+}
