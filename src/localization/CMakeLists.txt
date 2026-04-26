@@ -5,6 +5,13 @@ project(localization)
 
 find_package(ament_cmake REQUIRED)
 find_package(Eigen3 REQUIRED)
+find_package(rclcpp REQUIRED)
+find_package(sensor_msgs REQUIRED)
+find_package(nav_msgs REQUIRED)
+
+# ---------------------------------------------------------------------------
+# Header-only interface libraries (shared by ekf_node, ukf_node, tests)
+# ---------------------------------------------------------------------------
 
 add_library(ctrv_model INTERFACE)
 target_include_directories(ctrv_model INTERFACE
@@ -19,6 +26,32 @@ target_include_directories(chi2_gate INTERFACE
   $<INSTALL_INTERFACE:include>)
 target_link_libraries(chi2_gate INTERFACE Eigen3::Eigen)
 target_compile_features(chi2_gate INTERFACE cxx_std_17)
+
+# ---------------------------------------------------------------------------
+# ekf_node executable
+# ---------------------------------------------------------------------------
+
+add_executable(ekf_node src/ekf_node.cpp)
+target_include_directories(ekf_node PRIVATE
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
+target_compile_features(ekf_node PRIVATE cxx_std_17)
+ament_target_dependencies(ekf_node rclcpp sensor_msgs nav_msgs)
+target_link_libraries(ekf_node ctrv_model chi2_gate)
+
+# ---------------------------------------------------------------------------
+# Install
+# ---------------------------------------------------------------------------
+
+install(TARGETS ekf_node DESTINATION lib/${PROJECT_NAME})
+install(DIRECTORY include/ DESTINATION include)
+install(DIRECTORY launch/ DESTINATION share/${PROJECT_NAME}/launch)
+install(FILES
+  ${CMAKE_SOURCE_DIR}/../../config/ekf.yaml
+  DESTINATION share/${PROJECT_NAME}/config)
+
+# ---------------------------------------------------------------------------
+# Tests
+# ---------------------------------------------------------------------------
 
 if(BUILD_TESTING)
   find_package(ament_cmake_gtest REQUIRED)
