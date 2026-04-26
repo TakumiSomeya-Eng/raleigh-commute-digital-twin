@@ -190,6 +190,7 @@ def run_ks_test(
 def write_ks_report(report: dict[str, Any], path: Path) -> None:
     """Write *report* to *path* as indented JSON (overwrites if present)."""
     path.parent.mkdir(parents=True, exist_ok=True)
-    with open(path, "w", encoding="utf-8") as fh:
+    with open(path, "w", encoding="utf-8", newline="\n") as fh:
         json.dump(report, fh, indent=2)
+        fh.write("\n")
     logger.info("[FR-2.3 ks] report → %s", path)

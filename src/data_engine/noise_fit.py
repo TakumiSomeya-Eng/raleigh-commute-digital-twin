@@ -307,6 +307,6 @@ def write_noise_fit_yaml(
     }
 
     path.parent.mkdir(parents=True, exist_ok=True)
-    with open(path, "w", encoding="utf-8") as fh:
+    with open(path, "w", encoding="utf-8", newline="\n") as fh:
         yaml.dump(data, fh, default_flow_style=False, sort_keys=False, allow_unicode=True)
     logger.info("[FR-2.1 fit] wrote %s", path)
