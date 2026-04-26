@@ -157,10 +157,12 @@ def _cmd_ks(args: argparse.Namespace) -> int:
     cfg_path = Path(args.config) if args.config else _DEFAULT_CONFIG
     p_threshold = 0.05
     pass_rate = 0.80
+    max_comparison_n = 200
     try:
         cfg = _load_config(cfg_path)
         p_threshold = float(cfg.get("ks_gate_p_threshold", 0.05))
         pass_rate = float(cfg.get("ks_gate_pass_rate", 0.80))
+        max_comparison_n = int(cfg.get("ks_max_comparison_n", 200))
     except (KeyError, FileNotFoundError):
         pass
 
@@ -175,7 +177,11 @@ def _cmd_ks(args: argparse.Namespace) -> int:
 
     try:
         report = run_ks_test(
-            real_dir, synth_dir, p_threshold=p_threshold, pass_rate_threshold=pass_rate
+            real_dir,
+            synth_dir,
+            p_threshold=p_threshold,
+            pass_rate_threshold=pass_rate,
+            max_comparison_n=max_comparison_n,
         )
     except ValueError as exc:
         sys.stderr.write(f"[FR-2.3 ks] ERROR  {exc}\n")

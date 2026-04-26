@@ -16,16 +16,16 @@ TRACE       ?= day2
 FILTER      ?= ekf
 N_SCENARIOS ?= 10
 
-# Map TRACE names to raw-data subdirectories under data/.
-TRACE_day1 := data/Saint_Marys_Street-2026-04-16_13-27-45
-TRACE_day2 := data/Saint_Marys_Street-2026-04-17_13-20-03
+# Raw-data directories (relative from this worktree to the project Data/ folder).
+TRACE_day1 := ../../../Data/Saint_Marys_Street-2026-04-16_13-27-45
+TRACE_day2 := ../../../Data/Saint_Marys_Street-2026-04-17_13-20-03
 DATA_DIR    := $(TRACE_$(TRACE))
 
 # ---------------------------------------------------------------------------
 # Phony targets
 # ---------------------------------------------------------------------------
 
-.PHONY: help bootstrap data synth bag fuse eval ideal score report deploy clean test
+.PHONY: help bootstrap data fit synth ks bag fuse eval ideal score report deploy clean test
 
 # ---------------------------------------------------------------------------
 # help -- scans ## comments to self-document all targets
@@ -87,10 +87,25 @@ data:
 		--data-dir "$(DATA_DIR)" \
 		--out-dir  out
 
-## synth       : Generate synthetic scenarios + KS gate (FR-2.2/2.3)  N_SCENARIOS=10
+## fit         : Fit noise distributions from aligned Parquet (FR-2.1)  TRACE=day1|day2
+fit:
+	python -m data_engine fit \
+		--traces  "$(TRACE)" \
+		--out-dir out
+
+## synth       : Generate N synthetic scenarios from base trace (FR-2.2)  TRACE=day2 N_SCENARIOS=10
 synth:
-	@printf '[%s] [FR-2.2 synth] INFO  T1.5 synth TRACE=%s N=%s -- not yet implemented\n' \
-		"$$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$(TRACE)" "$(N_SCENARIOS)"
+	python -m data_engine synth \
+		--base      "$(TRACE)" \
+		--n         "$(N_SCENARIOS)" \
+		--out-dir   out
+
+## ks          : Run KS-test gate real vs. synthetic (FR-2.3)  TRACE=day2
+ks:
+	python -m data_engine ks \
+		--real  "out/$(TRACE)" \
+		--synth out/synthetic \
+		--out   gates/p1_ks.json
 
 ## bag         : Convert aligned Parquet -> MCAP bag (FR-3.1)  TRACE=...
 bag:
