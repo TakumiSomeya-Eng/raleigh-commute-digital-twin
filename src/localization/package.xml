@@ -12,6 +12,7 @@
   <depend>rclcpp</depend>
   <depend>sensor_msgs</depend>
   <depend>nav_msgs</depend>
+  <depend>diagnostic_msgs</depend>
 
   <exec_depend>ros2bag</exec_depend>
   <exec_depend>rosbag2_transport</exec_depend>

@@ -1,19 +1,19 @@
-// FR-4.2 — Extended Kalman Filter ROS 2 node (T2.5 full implementation).
+// FR-4.2 / FR-4.5 — Extended Kalman Filter ROS 2 node.
 //
 // State vector: [px, py, v, psi, psi_dot]   (ENU metres, m/s, rad, rad/s)
 // Predict step : driven by IMU at 100 Hz (CTRV + a_lon control input)
 // Update steps : GPS position (2D) and IMU yaw-rate pseudo-measurement
+// Diagnostics  : /fused/diagnostics at 1 Hz (FR-4.5)
 //
-// Measurement models
-//   GPS position  : z=[px,py],      H=I_{2×5}[:,0:2],  R = diag(σ_h², σ_h²)
-//   IMU yaw-rate  : z=ω_z,          H=[0,0,0,0,1],     R = ω_z variance (from msg covariance)
-//
-// Initialisation  : accumulate wait_gps_count GPS fixes, seed x from mean ENU position
-// Chi-squared gate: wraps both update steps
+// T2.5: full EKF math
+// T2.6: diagnostics topic
 
 #include <Eigen/Core>
 #include <Eigen/LU>
 #include <cmath>
+#include <diagnostic_msgs/msg/diagnostic_array.hpp>
+#include <diagnostic_msgs/msg/diagnostic_status.hpp>
+#include <diagnostic_msgs/msg/key_value.hpp>
 #include <nav_msgs/msg/odometry.hpp>
 #include <rclcpp/rclcpp.hpp>
 #include <sensor_msgs/msg/imu.hpp>
@@ -22,6 +22,7 @@
 
 #include "localization/chi2_gate.hpp"
 #include "localization/ctrv_model.hpp"
+#include "localization/diagnostics.hpp"
 
 namespace localization {
 
@@ -121,12 +122,19 @@ class EkfNode : public rclcpp::Node {
         [this](sensor_msgs::msg::MagneticField::SharedPtr msg) { on_mag(msg); });
   }
 
-  // ---- publishers ----------------------------------------------------------
+  // ---- publishers and timers -----------------------------------------------
 
   void create_publishers() {
     auto odom_qos =
         rclcpp::QoS(rclcpp::KeepLast(100)).reliability(rclcpp::ReliabilityPolicy::Reliable);
     odom_pub_ = create_publisher<nav_msgs::msg::Odometry>("/fused/odom", odom_qos);
+
+    auto diag_qos =
+        rclcpp::QoS(rclcpp::KeepLast(10)).reliability(rclcpp::ReliabilityPolicy::Reliable);
+    diag_pub_ =
+        create_publisher<diagnostic_msgs::msg::DiagnosticArray>("/fused/diagnostics", diag_qos);
+
+    diag_timer_ = create_wall_timer(std::chrono::seconds(1), [this]() { publish_diagnostics(); });
   }
 
   // ---- GPS callback --------------------------------------------------------
@@ -161,12 +169,19 @@ class EkfNode : public rclcpp::Node {
     const Vec2 innov = z - H * x_;
     const Mat2 S = H * P_ * H.transpose() + R;
 
+    const double nis = (innov.transpose() * S.inverse() * innov)(0, 0);
+    const double time_s = rclcpp::Time(msg->header.stamp).seconds();
+
     if (!passes_gate(innov, S, chi2_confidence_)) {
       ++rejection_count_;
-      RCLCPP_DEBUG(get_logger(), "[FR-4.3 gate] GPS rejected  d2=%.1f  total=%d",
-                   (innov.transpose() * S.inverse() * innov)(0, 0), rejection_count_);
+      diag_.record_rejected(time_s);
+      RCLCPP_DEBUG(get_logger(), "[FR-4.3 gate] GPS rejected  d2=%.1f  total=%d", nis,
+                   rejection_count_);
       return;
     }
+
+    diag_.record_accepted(time_s, nis);
+    diag_.r_pos_trace = 2.0 * var_h;  // trace of diag(var_h, var_h)
 
     const Eigen::Matrix<double, 5, 2> K = P_ * H.transpose() * S.inverse();
     x_ += K * innov;
@@ -202,6 +217,7 @@ class EkfNode : public rclcpp::Node {
 
     x_ = x_pred;
     P_ = F * P_ * F.transpose() + Q;
+    diag_.q_trace = Q.trace();
 
     // --- Yaw-rate pseudo-measurement from gz ---
     const double r_yaw = msg->angular_velocity_covariance[8];  // gz variance (noise_fit YAML)
@@ -312,6 +328,49 @@ class EkfNode : public rclcpp::Node {
     odom_pub_->publish(odom);
   }
 
+  // ---- Diagnostics publishing (1 Hz) ---------------------------------------
+
+  void publish_diagnostics() {
+    const double now_s = now().seconds();
+    diag_.update(now_s);
+
+    diagnostic_msgs::msg::KeyValue kv;
+    std::vector<diagnostic_msgs::msg::KeyValue> values;
+
+    auto make_kv = [](const std::string& key, const std::string& val) {
+      diagnostic_msgs::msg::KeyValue kv;
+      kv.key = key;
+      kv.value = val;
+      return kv;
+    };
+
+    values.push_back(make_kv("rejection_count", std::to_string(diag_.rejection_count)));
+    values.push_back(make_kv("nees_mean", std::to_string(diag_.nees_mean)));
+    values.push_back(make_kv("Q_trace", std::to_string(diag_.q_trace)));
+    values.push_back(make_kv("R_pos_trace", std::to_string(diag_.r_pos_trace)));
+    values.push_back(make_kv("health", diag_.health));
+
+    diagnostic_msgs::msg::DiagnosticStatus status;
+    status.name = "ekf_node";
+    status.hardware_id = "";
+    status.message = diag_.health;
+    if (diag_.health == DiagnosticsState::kOk) {
+      status.level = diagnostic_msgs::msg::DiagnosticStatus::OK;
+    } else if (diag_.health == DiagnosticsState::kDegraded) {
+      status.level = diagnostic_msgs::msg::DiagnosticStatus::WARN;
+    } else {
+      status.level = diagnostic_msgs::msg::DiagnosticStatus::ERROR;
+    }
+    status.values = values;
+
+    diagnostic_msgs::msg::DiagnosticArray msg;
+    msg.header.stamp = now();
+    msg.status.push_back(status);
+    diag_pub_->publish(msg);
+
+    (void)kv;
+  }
+
   // ---- members -------------------------------------------------------------
 
   // Parameters
@@ -327,6 +386,9 @@ class EkfNode : public rclcpp::Node {
   bool initialized_{false};
   int rejection_count_{0};
 
+  // Diagnostics
+  DiagnosticsState diag_;
+
   // Initialisation buffer
   std::vector<std::array<double, 2>> init_positions_;
 
@@ -338,6 +400,8 @@ class EkfNode : public rclcpp::Node {
   rclcpp::Subscription<sensor_msgs::msg::Imu>::SharedPtr imu_sub_;
   rclcpp::Subscription<sensor_msgs::msg::MagneticField>::SharedPtr mag_sub_;
   rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr odom_pub_;
+  rclcpp::Publisher<diagnostic_msgs::msg::DiagnosticArray>::SharedPtr diag_pub_;
+  rclcpp::TimerBase::SharedPtr diag_timer_;
 };
 
 }  // namespace localization
