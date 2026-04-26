@@ -109,8 +109,10 @@ ks:
 
 ## bag         : Convert aligned Parquet -> MCAP bag (FR-3.1)  TRACE=...
 bag:
-	@printf '[%s] [FR-3.1 bag] INFO  T2.1 bag TRACE=%s -- not yet implemented\n' \
-		"$$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$(TRACE)"
+	PYTHONPATH="src" python -m bag_bridge.parquet_to_mcap \
+		--parquet  "out/$(TRACE)/aligned_100hz.parquet" \
+		--noise-fit "config/noise_fit_$(TRACE).yaml" \
+		--out-dir  "out/$(TRACE)"
 
 ## fuse        : Run EKF/UKF sensor fusion (FR-4.2/5.2)  TRACE=...  FILTER=ekf|ukf
 fuse:
