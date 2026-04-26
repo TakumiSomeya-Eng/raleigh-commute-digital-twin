@@ -1,9 +1,11 @@
-"""Unit tests for bag_bridge: CDR serializers and parquet_to_mcap converter.
+"""Unit tests for bag_bridge: CDR serializers, parsers, and converters.
 
 Tests cover:
   - _CdrWriter alignment and primitive encoding
   - serialize_navsatfix / serialize_imu / serialize_magnetic_field byte layout
-  - convert() end-to-end: writes a valid MCAP with correct message counts
+  - parquet_to_mcap.convert(): writes a valid MCAP with correct message counts
+  - parse_odometry_cdr(): round-trip with serialize_odometry
+  - mcap_to_parquet.convert(): round-trip MCAP -> Parquet with correct schema/values
 """
 
 from __future__ import annotations
@@ -265,6 +267,256 @@ def _make_fake_noise_fit(path: Path) -> None:
         },
     }
     path.write_text(yaml.dump(data), encoding="utf-8")
+
+
+# ---------------------------------------------------------------------------
+# parse_odometry_cdr + serialize_odometry round-trip
+# ---------------------------------------------------------------------------
+
+
+_ZEROS_36 = [0.0] * 36
+
+
+def _make_pose_cov(cov_xx: float, cov_yy: float, cov_yaw: float) -> list[float]:
+    """Build a 36-element pose covariance vector with values at [0], [7], [35]."""
+    cov = [0.0] * 36
+    cov[0] = cov_xx
+    cov[7] = cov_yy
+    cov[35] = cov_yaw
+    return cov
+
+
+class TestParseOdometryCdr:
+    def _roundtrip(
+        self,
+        sec: int = 1_700_000_000,
+        nanosec: int = 500_000_000,
+        px: float = 10.0,
+        py: float = 20.0,
+        qz: float = 0.0,
+        qw: float = 1.0,
+        vx: float = 5.0,
+        wz: float = 0.1,
+        cov_xx: float = 4.0,
+        cov_yy: float = 4.0,
+        cov_yaw: float = 0.25,
+    ) -> dict:
+        from bag_bridge._cdr import parse_odometry_cdr, serialize_odometry
+
+        buf = serialize_odometry(
+            sec=sec,
+            nanosec=nanosec,
+            frame_id="odom",
+            child_frame_id="base_link",
+            px=px,
+            py=py,
+            pz=0.0,
+            qx=0.0,
+            qy=0.0,
+            qz=qz,
+            qw=qw,
+            pose_cov=_make_pose_cov(cov_xx, cov_yy, cov_yaw),
+            vx=vx,
+            vy=0.0,
+            vz=0.0,
+            wx=0.0,
+            wy=0.0,
+            wz=wz,
+            twist_cov=_ZEROS_36,
+        )
+        return parse_odometry_cdr(buf)
+
+    def test_timestamp(self) -> None:
+        d = self._roundtrip(sec=1_700_000_000, nanosec=500_000_000)
+        assert d["t_s"] == pytest.approx(1_700_000_000.5)
+
+    def test_position(self) -> None:
+        d = self._roundtrip(px=123.4, py=-56.7)
+        assert d["px_m"] == pytest.approx(123.4)
+        assert d["py_m"] == pytest.approx(-56.7)
+
+    def test_velocity(self) -> None:
+        d = self._roundtrip(vx=8.5, wz=-0.3)
+        assert d["v_mps"] == pytest.approx(8.5)
+        assert d["psi_dot_rps"] == pytest.approx(-0.3)
+
+    def test_heading_from_quaternion(self) -> None:
+        import math
+
+        psi_expected = 1.2  # rad
+        qz = math.sin(psi_expected / 2)
+        qw = math.cos(psi_expected / 2)
+        d = self._roundtrip(qz=qz, qw=qw)
+        assert d["psi_rad"] == pytest.approx(psi_expected, abs=1e-12)
+
+    def test_covariance(self) -> None:
+        d = self._roundtrip(cov_xx=9.0, cov_yy=16.0, cov_yaw=0.5)
+        assert d["cov_xx"] == pytest.approx(9.0)
+        assert d["cov_yy"] == pytest.approx(16.0)
+        assert d["cov_yaw"] == pytest.approx(0.5)
+
+    def test_zero_heading_identity_quaternion(self) -> None:
+        d = self._roundtrip(qz=0.0, qw=1.0)
+        assert d["psi_rad"] == pytest.approx(0.0)
+
+
+# ---------------------------------------------------------------------------
+# mcap_to_parquet.convert() — end-to-end round-trip
+# ---------------------------------------------------------------------------
+
+
+def _write_fake_odom_mcap(path: Path, n_msgs: int = 5) -> list[dict]:
+    """Write a minimal MCAP with /fused/odom messages; return the expected rows."""
+    import math
+
+    from mcap.writer import Writer
+
+    from bag_bridge._cdr import serialize_odometry
+    from bag_bridge._ros2_schemas import ODOMETRY_SCHEMA
+
+    rows = []
+    t0_ns = 1_700_000_000 * 1_000_000_000
+
+    with path.open("wb") as f:
+        writer = Writer(f)
+        writer.start()
+        schema_id = writer.register_schema(
+            name="nav_msgs/msg/Odometry",
+            encoding="ros2msg",
+            data=ODOMETRY_SCHEMA.encode(),
+        )
+        channel_id = writer.register_channel(
+            topic="/fused/odom",
+            message_encoding="cdr",
+            schema_id=schema_id,
+        )
+        for i in range(n_msgs):
+            stamp_ns = t0_ns + i * 100_000_000  # 10 Hz
+            sec = stamp_ns // 1_000_000_000
+            nanosec = stamp_ns % 1_000_000_000
+            px = float(i) * 2.0
+            py = float(i) * 1.0
+            psi = 0.3 * i
+            qz = math.sin(psi / 2)
+            qw = math.cos(psi / 2)
+            vx = 5.0 + i * 0.1
+            wz = 0.05 * i
+            cov_xx = 1.0 + i * 0.1
+            cov_yy = 2.0 + i * 0.1
+            cov_yaw = 0.1 + i * 0.01
+            data = serialize_odometry(
+                sec=sec,
+                nanosec=nanosec,
+                frame_id="odom",
+                child_frame_id="base_link",
+                px=px,
+                py=py,
+                pz=0.0,
+                qx=0.0,
+                qy=0.0,
+                qz=qz,
+                qw=qw,
+                pose_cov=_make_pose_cov(cov_xx, cov_yy, cov_yaw),
+                vx=vx,
+                vy=0.0,
+                vz=0.0,
+                wx=0.0,
+                wy=0.0,
+                wz=wz,
+                twist_cov=_ZEROS_36,
+            )
+            writer.add_message(
+                channel_id=channel_id,
+                log_time=stamp_ns,
+                data=data,
+                publish_time=stamp_ns,
+            )
+            rows.append(
+                {
+                    "t_s": sec + nanosec * 1e-9,
+                    "px_m": px,
+                    "py_m": py,
+                    "v_mps": vx,
+                    "psi_rad": 2.0 * math.atan2(qz, qw),
+                    "psi_dot_rps": wz,
+                    "cov_xx": cov_xx,
+                    "cov_yy": cov_yy,
+                    "cov_yaw": cov_yaw,
+                }
+            )
+        writer.finish()
+
+    return rows
+
+
+class TestMcapToParquet:
+    def test_parquet_created(self, tmp_path: Path) -> None:
+        mcap = tmp_path / "fused_ekf.mcap"
+        _write_fake_odom_mcap(mcap)
+
+        from bag_bridge.mcap_to_parquet import convert
+
+        out = convert(mcap, tmp_path / "fused_ekf.parquet")
+        assert out.exists()
+        assert out.stat().st_size > 0
+
+    def test_row_count(self, tmp_path: Path) -> None:
+        mcap = tmp_path / "odom.mcap"
+        _write_fake_odom_mcap(mcap, n_msgs=7)
+
+        from bag_bridge.mcap_to_parquet import convert
+
+        out = convert(mcap, tmp_path / "out.parquet")
+        import pandas as pd
+
+        df = pd.read_parquet(out)
+        assert len(df) == 7
+
+    def test_schema_columns(self, tmp_path: Path) -> None:
+        mcap = tmp_path / "odom.mcap"
+        _write_fake_odom_mcap(mcap)
+
+        from bag_bridge.mcap_to_parquet import _COLUMNS, convert
+
+        out = convert(mcap, tmp_path / "out.parquet")
+        import pandas as pd
+
+        df = pd.read_parquet(out)
+        assert list(df.columns) == _COLUMNS
+
+    def test_values_match(self, tmp_path: Path) -> None:
+        mcap = tmp_path / "odom.mcap"
+        expected_rows = _write_fake_odom_mcap(mcap, n_msgs=3)
+
+        from bag_bridge.mcap_to_parquet import convert
+
+        out = convert(mcap, tmp_path / "out.parquet")
+        import pandas as pd
+
+        df = pd.read_parquet(out)
+        for i, row in enumerate(expected_rows):
+            assert df["t_s"].iloc[i] == pytest.approx(row["t_s"], rel=1e-9)
+            assert df["px_m"].iloc[i] == pytest.approx(row["px_m"])
+            assert df["py_m"].iloc[i] == pytest.approx(row["py_m"])
+            assert df["v_mps"].iloc[i] == pytest.approx(row["v_mps"])
+            assert df["psi_rad"].iloc[i] == pytest.approx(row["psi_rad"], abs=1e-12)
+            assert df["psi_dot_rps"].iloc[i] == pytest.approx(row["psi_dot_rps"])
+            assert df["cov_xx"].iloc[i] == pytest.approx(row["cov_xx"])
+            assert df["cov_yy"].iloc[i] == pytest.approx(row["cov_yy"])
+            assert df["cov_yaw"].iloc[i] == pytest.approx(row["cov_yaw"])
+
+    def test_bag_directory_input(self, tmp_path: Path) -> None:
+        bag_dir = tmp_path / "fused_ekf_bag"
+        bag_dir.mkdir()
+        _write_fake_odom_mcap(bag_dir / "fused_ekf_0.mcap", n_msgs=4)
+
+        from bag_bridge.mcap_to_parquet import convert
+
+        out = convert(bag_dir, tmp_path / "out.parquet")
+        import pandas as pd
+
+        df = pd.read_parquet(out)
+        assert len(df) == 4
 
 
 class TestConvert:

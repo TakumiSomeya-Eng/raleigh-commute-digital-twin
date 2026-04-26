@@ -1,9 +1,12 @@
-"""Minimal CDR (Common Data Representation) serializer for ROS 2 messages.
+"""CDR (Common Data Representation) serializer and parser for ROS 2 messages.
 
-Only the three message types used by parquet_to_mcap are implemented:
+Serializers (parquet_to_mcap):
   sensor_msgs/msg/NavSatFix
   sensor_msgs/msg/Imu
   sensor_msgs/msg/MagneticField
+
+Parser (mcap_to_parquet):
+  nav_msgs/msg/Odometry  →  parse_odometry_cdr()
 
 CDR encoding: little-endian, encapsulation header = 0x00 0x01 0x00 0x00.
 Alignment is computed from offset 0 of the data section (after the 4-byte header).
@@ -63,6 +66,52 @@ class _CdrWriter:
 
     def build(self) -> bytes:
         return bytes(self._buf)
+
+
+# ---------------------------------------------------------------------------
+# _CdrReader — minimal parser for nav_msgs/msg/Odometry
+# ---------------------------------------------------------------------------
+
+
+class _CdrReader:
+    """Sequential CDR byte reader; alignment is data-section-relative (after 4-byte header)."""
+
+    def __init__(self, data: bytes) -> None:
+        self._buf = data
+        self._pos: int = 4  # skip CDR encapsulation header
+
+    def _data_pos(self) -> int:
+        return self._pos - 4
+
+    def _align(self, n: int) -> None:
+        self._pos += (-self._data_pos()) % n
+
+    def int32(self) -> int:
+        self._align(4)
+        (v,) = struct.unpack_from("<i", self._buf, self._pos)
+        self._pos += 4
+        return v
+
+    def uint32(self) -> int:
+        self._align(4)
+        (v,) = struct.unpack_from("<I", self._buf, self._pos)
+        self._pos += 4
+        return v
+
+    def float64(self) -> float:
+        self._align(8)
+        (v,) = struct.unpack_from("<d", self._buf, self._pos)
+        self._pos += 8
+        return v
+
+    def float64_array(self, n: int) -> list[float]:
+        return [self.float64() for _ in range(n)]
+
+    def string(self) -> str:
+        length = self.uint32()  # includes null terminator
+        s = self._buf[self._pos : self._pos + length - 1].decode("utf-8")
+        self._pos += length
+        return s
 
 
 # ---------------------------------------------------------------------------
@@ -174,3 +223,91 @@ def serialize_magnetic_field(
     _write_vector3(w, mx * 1e-6, my * 1e-6, mz * 1e-6)
     w.float64_array(_ZEROS_9)  # covariance unknown
     return w.build()
+
+
+def serialize_odometry(
+    sec: int,
+    nanosec: int,
+    frame_id: str,
+    child_frame_id: str,
+    px: float,
+    py: float,
+    pz: float,
+    qx: float,
+    qy: float,
+    qz: float,
+    qw: float,
+    pose_cov: list[float],
+    vx: float,
+    vy: float,
+    vz: float,
+    wx: float,
+    wy: float,
+    wz: float,
+    twist_cov: list[float],
+) -> bytes:
+    """Serialize a nav_msgs/msg/Odometry message to CDR bytes."""
+    w = _CdrWriter()
+    _write_header(w, sec, nanosec, frame_id)
+    w.string(child_frame_id)
+    _write_vector3(w, px, py, pz)  # position
+    w.float64(qx)  # orientation (x y z w)
+    w.float64(qy)
+    w.float64(qz)
+    w.float64(qw)
+    w.float64_array(pose_cov)  # pose covariance [36]
+    _write_vector3(w, vx, vy, vz)  # twist linear
+    _write_vector3(w, wx, wy, wz)  # twist angular
+    w.float64_array(twist_cov)  # twist covariance [36]
+    return w.build()
+
+
+def parse_odometry_cdr(data: bytes) -> dict[str, float]:
+    """Parse nav_msgs/msg/Odometry CDR bytes into a flat dict.
+
+    Returns keys: t_s, px_m, py_m, v_mps, psi_rad, psi_dot_rps,
+                  cov_xx, cov_yy, cov_yaw.
+    """
+    import math
+
+    r = _CdrReader(data)
+
+    # std_msgs/Header
+    sec = r.int32()
+    nanosec = r.uint32()
+    _frame_id = r.string()
+    _child = r.string()
+
+    # geometry_msgs/PoseWithCovariance / Pose / Point
+    px_m = r.float64()
+    py_m = r.float64()
+    _pz = r.float64()
+
+    # geometry_msgs/Quaternion: field order x, y, z, w
+    _qx = r.float64()
+    _qy = r.float64()
+    qz = r.float64()
+    qw = r.float64()
+
+    # pose covariance[36] — extract indices 0 (cov_xx), 7 (cov_yy), 35 (cov_yaw)
+    pose_cov = r.float64_array(36)
+
+    # geometry_msgs/TwistWithCovariance / Twist
+    v_mps = r.float64()  # linear.x
+    _vy = r.float64()
+    _vz = r.float64()
+    _wx = r.float64()
+    _wy = r.float64()
+    psi_dot_rps = r.float64()  # angular.z
+
+    return {
+        "t_s": sec + nanosec * 1e-9,
+        "px_m": px_m,
+        "py_m": py_m,
+        "v_mps": v_mps,
+        "psi_rad": 2.0 * math.atan2(qz, qw),
+        "psi_dot_rps": psi_dot_rps,
+        "cov_xx": pose_cov[0],
+        "cov_yy": pose_cov[7],
+        "cov_yaw": pose_cov[35],
+    }

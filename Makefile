@@ -122,8 +122,11 @@ bag:
 
 ## fuse        : Run EKF/UKF sensor fusion (FR-4.2/5.2)  TRACE=...  FILTER=ekf|ukf
 fuse:
-	@printf '[%s] [FR-4.2 fuse] INFO  T2.5 fuse TRACE=%s FILTER=%s -- not yet implemented\n' \
-		"$$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$(TRACE)" "$(FILTER)"
+	mkdir -p out/$(TRACE)
+	PYTHONPATH="src" python scripts/run_fuse.py \
+		--trace  "$(TRACE)" \
+		--filter "$(FILTER)" \
+		--out-dir out
 
 ## eval        : Compute RMSE / NEES filter evaluation (FR-6.2)  TRACE=...  FILTER=...
 eval:

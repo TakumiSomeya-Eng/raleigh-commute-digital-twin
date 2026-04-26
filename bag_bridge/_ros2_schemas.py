@@ -80,3 +80,48 @@ MSG: geometry_msgs/Vector3
 float64 x
 float64 y
 float64 z"""
+
+_VECTOR3 = """\
+float64 x
+float64 y
+float64 z"""
+
+_QUATERNION = """\
+float64 x
+float64 y
+float64 z
+float64 w"""
+
+ODOMETRY_SCHEMA: str = f"""\
+std_msgs/Header header
+string child_frame_id
+geometry_msgs/PoseWithCovariance pose
+geometry_msgs/TwistWithCovariance twist
+================================================================================
+MSG: std_msgs/Header
+{_HEADER}
+================================================================================
+MSG: geometry_msgs/PoseWithCovariance
+geometry_msgs/Pose pose
+float64[36] covariance
+================================================================================
+MSG: geometry_msgs/Pose
+geometry_msgs/Point position
+geometry_msgs/Quaternion orientation
+================================================================================
+MSG: geometry_msgs/Point
+{_VECTOR3}
+================================================================================
+MSG: geometry_msgs/Quaternion
+{_QUATERNION}
+================================================================================
+MSG: geometry_msgs/TwistWithCovariance
+geometry_msgs/Twist twist
+float64[36] covariance
+================================================================================
+MSG: geometry_msgs/Twist
+geometry_msgs/Vector3 linear
+geometry_msgs/Vector3 angular
+================================================================================
+MSG: geometry_msgs/Vector3
+{_VECTOR3}"""
