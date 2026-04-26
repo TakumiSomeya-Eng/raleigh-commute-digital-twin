@@ -28,6 +28,13 @@ target_include_directories(chi2_gate INTERFACE
 target_link_libraries(chi2_gate INTERFACE Eigen3::Eigen)
 target_compile_features(chi2_gate INTERFACE cxx_std_17)
 
+add_library(sigma_points INTERFACE)
+target_include_directories(sigma_points INTERFACE
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  $<INSTALL_INTERFACE:include>)
+target_link_libraries(sigma_points INTERFACE Eigen3::Eigen)
+target_compile_features(sigma_points INTERFACE cxx_std_17)
+
 # ---------------------------------------------------------------------------
 # ekf_node executable
 # ---------------------------------------------------------------------------
@@ -40,14 +47,26 @@ ament_target_dependencies(ekf_node rclcpp sensor_msgs nav_msgs diagnostic_msgs)
 target_link_libraries(ekf_node ctrv_model chi2_gate)
 
 # ---------------------------------------------------------------------------
+# ukf_node executable
+# ---------------------------------------------------------------------------
+
+add_executable(ukf_node src/ukf_node.cpp)
+target_include_directories(ukf_node PRIVATE
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
+target_compile_features(ukf_node PRIVATE cxx_std_17)
+ament_target_dependencies(ukf_node rclcpp sensor_msgs nav_msgs diagnostic_msgs)
+target_link_libraries(ukf_node ctrv_model chi2_gate sigma_points)
+
+# ---------------------------------------------------------------------------
 # Install
 # ---------------------------------------------------------------------------
 
-install(TARGETS ekf_node DESTINATION lib/${PROJECT_NAME})
+install(TARGETS ekf_node ukf_node DESTINATION lib/${PROJECT_NAME})
 install(DIRECTORY include/ DESTINATION include)
 install(DIRECTORY launch/ DESTINATION share/${PROJECT_NAME}/launch)
 install(FILES
   ${CMAKE_SOURCE_DIR}/../../config/ekf.yaml
+  ${CMAKE_SOURCE_DIR}/../../config/ukf.yaml
   DESTINATION share/${PROJECT_NAME}/config)
 
 # ---------------------------------------------------------------------------
@@ -63,6 +82,8 @@ if(BUILD_TESTING)
   ament_add_gtest(test_diagnostics test/test_diagnostics.cpp)
   target_include_directories(test_diagnostics PRIVATE
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
+  ament_add_gtest(test_sigma_points test/test_sigma_points.cpp)
+  target_link_libraries(test_sigma_points sigma_points)
 endif()
 
 ament_package()
