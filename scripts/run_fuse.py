@@ -46,6 +46,9 @@ def run_fuse(trace: str, filter_name: str, out_dir: Path) -> Path:
 
     bag_out_dir = out_dir / trace / f"fused_{filter_name}_bag"
     parquet_out = out_dir / trace / f"fused_{filter_name}.parquet"
+    # Remove stale bag directory so recorder starts fresh (idempotent re-runs).
+    if bag_out_dir.exists():
+        shutil.rmtree(bag_out_dir)
     bag_out_dir.mkdir(parents=True, exist_ok=True)
 
     _log("FR-4.2 fuse", f"TRACE={trace} FILTER={filter_name}")
