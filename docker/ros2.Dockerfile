@@ -63,7 +63,13 @@ RUN apt-get update \
     && apt-get update \
     && apt-get install -y --no-install-recommends \
         ros-jazzy-ros-base \
+        ros-jazzy-diagnostic-msgs \
+        ros-jazzy-nav-msgs \
+        ros-jazzy-sensor-msgs \
         python3-colcon-common-extensions \
+        build-essential \
+        cmake \
+        libeigen3-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy colcon install artifacts produced by the builder (initially empty).
