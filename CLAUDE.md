@@ -11,7 +11,7 @@ Sensor Logger（iPhone）で記録したUber乗車データをEKF/UKFで融合�
 
 - **ドキュメント**: `Docs/PRD.md` / `Docs/FRD.md` / `Docs/TRD.md` / `Docs/DEV_PLAN.md`
 - **37タスク / 6フェーズ**: P0（基盤）→ P1（データ）→ P2（融合）→ P3（評価）→ P4（理想）→ P5（レポート）
-- **現在地**: P1 T1.3完了・T2.3完了（2025-04-25時点）
+- **現在地**: P2完了（T2.1〜T2.8完了・EKF/UKF day2 Parquet生成確認済み）（2026-04-26時点）
 
 ---
 
@@ -150,8 +150,8 @@ flat-earth / equirectangular 近似。回廊スパン < 10 km で有効（TRD §
 | フェーズ | ゲート条件 | 状態 |
 |---|---|---|
 | P0 | make bootstrap && make test が通る | ✅ |
-| P1 | KS-test が 80% 以上のチャネルで通過 | T1.4〜T1.6 未完 |
-| P2 | EKF/UKF がday2.mcapに対してクラッシュしない | T2.1〜T2.8 未完 |
+| P1 | KS-test が 80% 以上のチャネルで通過 | ✅ (T1.6完了) |
+| P2 | EKF/UKF がday2.mcapに対してクラッシュしない | ✅ (EKF 8.9MB / UKF 7.9MB Parquet確認) |
 | P3 | EKF RMSE ≤ 0.75 × GPS-only RMSE | 未着手 |
 | P4 | score.json が day2 に対して出力される | 未着手 |
 | P5 | docker compose からreport.htmlが30分以内に生成 | 未着手 |
