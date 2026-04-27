@@ -1,7 +1,8 @@
 """FR-3.1, FR-3.2 — Convert aligned_100hz.parquet to a ROS 2 MCAP bag.
 
-Publishes three topics:
+Publishes four topics:
   /gps/fix    sensor_msgs/msg/NavSatFix    ~1 Hz  (gps_interpolated == False rows only)
+  /gps/speed  std_msgs/msg/Float64         ~1 Hz  (GPS speed in m/s, same rows as /gps/fix)
   /imu/data   sensor_msgs/msg/Imu          100 Hz (every row)
   /mag        sensor_msgs/msg/MagneticField  50 Hz (every 2nd row)
 
@@ -31,11 +32,13 @@ import yaml
 from mcap.writer import Writer
 
 from bag_bridge._cdr import (
+    serialize_float64_msg,
     serialize_imu,
     serialize_magnetic_field,
     serialize_navsatfix,
 )
 from bag_bridge._ros2_schemas import (
+    FLOAT64_SCHEMA,
     IMU_SCHEMA,
     MAGNETIC_FIELD_SCHEMA,
     NAVSATFIX_SCHEMA,
@@ -115,6 +118,7 @@ def convert(
     n_gps = 0
     n_imu = 0
     n_mag = 0
+    n_spd = 0
 
     with open(mcap_path, "wb") as raw:
         writer = Writer(raw)
@@ -136,6 +140,11 @@ def convert(
             encoding="ros2msg",
             data=MAGNETIC_FIELD_SCHEMA.encode(),
         )
+        spd_schema_id = writer.register_schema(
+            name="std_msgs/msg/Float64",
+            encoding="ros2msg",
+            data=FLOAT64_SCHEMA.encode(),
+        )
 
         # Register channels
         gps_ch_id = writer.register_channel(
@@ -152,6 +161,11 @@ def convert(
             topic="/mag",
             message_encoding="cdr",
             schema_id=mag_schema_id,
+        )
+        spd_ch_id = writer.register_channel(
+            topic="/gps/speed",
+            message_encoding="cdr",
+            schema_id=spd_schema_id,
         )
 
         for idx, row in enumerate(df.itertuples(index=False)):
@@ -202,6 +216,15 @@ def convert(
                 )
                 n_gps += 1
 
+                # /gps/speed — GPS-reported speed (m/s), same cadence as /gps/fix
+                writer.add_message(
+                    channel_id=spd_ch_id,
+                    log_time=time_ns,
+                    data=serialize_float64_msg(float(row.gps_speed_mps)),
+                    publish_time=time_ns,
+                )
+                n_spd += 1
+
             # /mag — every 2nd row (50 Hz)
             if idx % 2 == 0:
                 mag_data = serialize_magnetic_field(
@@ -241,6 +264,7 @@ def convert(
         "mcap_sha256": sha256,
         "duration_s": round(duration_s, 3),
         "n_gps": n_gps,
+        "n_spd": n_spd,
         "n_imu": n_imu,
         "n_mag": n_mag,
         "generated_at_utc": datetime.datetime.now(datetime.timezone.utc).isoformat(),
@@ -252,7 +276,7 @@ def convert(
     _ts2 = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     sys.stdout.write(
         f"[{_ts2}] [FR-3.1 bag] INFO  wrote {mcap_path}"
-        f"  gps={n_gps}  imu={n_imu}  mag={n_mag}\n"
+        f"  gps={n_gps}  spd={n_spd}  imu={n_imu}  mag={n_mag}\n"
     )
     sys.stdout.write(f"[{_ts2}] [FR-3.2 bag] INFO  metadata → {meta_path}\n")
 

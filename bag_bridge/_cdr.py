@@ -262,6 +262,13 @@ def serialize_odometry(
     return w.build()
 
 
+def serialize_float64_msg(value: float) -> bytes:
+    """Serialize a std_msgs/msg/Float64 message to CDR bytes."""
+    w = _CdrWriter()
+    w.float64(value)
+    return w.build()
+
+
 def parse_odometry_cdr(data: bytes) -> dict[str, float]:
     """Parse nav_msgs/msg/Odometry CDR bytes into a flat dict.
 

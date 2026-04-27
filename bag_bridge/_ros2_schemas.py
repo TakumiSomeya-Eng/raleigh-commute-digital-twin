@@ -125,3 +125,5 @@ geometry_msgs/Vector3 angular
 ================================================================================
 MSG: geometry_msgs/Vector3
 {_VECTOR3}"""
+
+FLOAT64_SCHEMA: str = "float64 data"

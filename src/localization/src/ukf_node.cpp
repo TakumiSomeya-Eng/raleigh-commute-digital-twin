@@ -1,7 +1,7 @@
 // FR-5.2 — Unscented Kalman Filter ROS 2 node.
 // State vector: [px, py, v, psi, psi_dot]   (ENU metres, m/s, rad, rad/s)
 // Predict step : sigma-point propagation at 100 Hz (CTRV + a_lon control input)
-// Update steps : GPS position (2D) and IMU yaw-rate pseudo-measurement
+// Update steps : GPS position (2D), GPS speed (scalar), IMU yaw-rate pseudo-measurement
 // Diagnostics  : /fused/diagnostics at 1 Hz (FR-4.5)
 // Shares CTRVModel and chi2_gate with ekf_node — no duplicate motion code.
 //
@@ -19,6 +19,7 @@
 #include <sensor_msgs/msg/imu.hpp>
 #include <sensor_msgs/msg/magnetic_field.hpp>
 #include <sensor_msgs/msg/nav_sat_fix.hpp>
+#include <std_msgs/msg/float64.hpp>
 
 #include "localization/chi2_gate.hpp"
 #include "localization/ctrv_model.hpp"
@@ -126,6 +127,9 @@ class UkfNode : public rclcpp::Node {
     mag_sub_ = create_subscription<sensor_msgs::msg::MagneticField>(
         "/mag", sensor_qos,
         [this](sensor_msgs::msg::MagneticField::SharedPtr msg) { on_mag(msg); });
+
+    spd_sub_ = create_subscription<std_msgs::msg::Float64>(
+        "/gps/speed", sensor_qos, [this](std_msgs::msg::Float64::SharedPtr msg) { on_speed(msg); });
   }
 
   // ---- publishers and timers -----------------------------------------------
@@ -273,6 +277,26 @@ class UkfNode : public rclcpp::Node {
     publish_odom(stamp);
   }
 
+  // ---- GPS speed callback --------------------------------------------------
+
+  void on_speed(std_msgs::msg::Float64::SharedPtr msg) {
+    if (!initialized_) return;
+
+    const double v_gps = msg->data;
+    if (v_gps < 0.0 || v_gps > 40.0) return;
+
+    // 1-DOF velocity update (linear, same math as EKF): H = [0 0 1 0 0]
+    const double innov_v = v_gps - x_[kV];
+    const double s_v = P_(kV, kV) + 1.0;  // R_v = 1.0 m²/s²
+    const Vec5 K_v = P_.col(kV) / s_v;
+    x_ += K_v * innov_v;
+    x_[kV] = std::max(0.0, x_[kV]);
+    Eigen::Matrix<double, 5, 5> I_KH = Mat5::Identity();
+    I_KH.col(kV) -= K_v;
+    P_ = I_KH * P_;
+    x_[kPsi] = std::remainder(x_[kPsi], 2.0 * M_PI);
+  }
+
   // ---- MagneticField callback (unused at T2.7) -----------------------------
 
   void on_mag(sensor_msgs::msg::MagneticField::SharedPtr msg) { (void)msg; }
@@ -411,6 +435,7 @@ class UkfNode : public rclcpp::Node {
   rclcpp::Subscription<sensor_msgs::msg::NavSatFix>::SharedPtr gps_sub_;
   rclcpp::Subscription<sensor_msgs::msg::Imu>::SharedPtr imu_sub_;
   rclcpp::Subscription<sensor_msgs::msg::MagneticField>::SharedPtr mag_sub_;
+  rclcpp::Subscription<std_msgs::msg::Float64>::SharedPtr spd_sub_;
   rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr odom_pub_;
   rclcpp::Publisher<diagnostic_msgs::msg::DiagnosticArray>::SharedPtr diag_pub_;
   rclcpp::TimerBase::SharedPtr diag_timer_;

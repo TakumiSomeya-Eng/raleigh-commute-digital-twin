@@ -24,6 +24,10 @@ ignore = [
     # UP017: use datetime.UTC alias introduced in Python 3.11.
     # Local dev may run 3.10; keep datetime.timezone.utc for portability.
     "UP017",
+    # N806/N803: uppercase variable/argument names — standard Kalman filter matrix
+    # notation (F, P, G, Q, R, K, H, S, Ps, Pp, Fs).  Renaming would harm readability.
+    "N806",
+    "N803",
 ]
 select = [
     "E",    # pycodestyle errors

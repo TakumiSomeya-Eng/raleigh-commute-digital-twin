@@ -9,6 +9,7 @@ find_package(rclcpp REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(nav_msgs REQUIRED)
 find_package(diagnostic_msgs REQUIRED)
+find_package(std_msgs REQUIRED)
 
 # ---------------------------------------------------------------------------
 # Header-only interface libraries (shared by ekf_node, ukf_node, tests)
@@ -43,7 +44,7 @@ add_executable(ekf_node src/ekf_node.cpp)
 target_include_directories(ekf_node PRIVATE
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
 target_compile_features(ekf_node PRIVATE cxx_std_17)
-ament_target_dependencies(ekf_node rclcpp sensor_msgs nav_msgs diagnostic_msgs)
+ament_target_dependencies(ekf_node rclcpp sensor_msgs nav_msgs diagnostic_msgs std_msgs)
 target_link_libraries(ekf_node ctrv_model chi2_gate)
 
 # ---------------------------------------------------------------------------
@@ -54,7 +55,7 @@ add_executable(ukf_node src/ukf_node.cpp)
 target_include_directories(ukf_node PRIVATE
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
 target_compile_features(ukf_node PRIVATE cxx_std_17)
-ament_target_dependencies(ukf_node rclcpp sensor_msgs nav_msgs diagnostic_msgs)
+ament_target_dependencies(ukf_node rclcpp sensor_msgs nav_msgs diagnostic_msgs std_msgs)
 target_link_libraries(ukf_node ctrv_model chi2_gate sigma_points)
 
 # ---------------------------------------------------------------------------

@@ -128,10 +128,24 @@ fuse:
 		--filter "$(FILTER)" \
 		--out-dir out
 
-## eval        : Compute RMSE / NEES filter evaluation (FR-6.2)  TRACE=...  FILTER=...
+## eval        : Compute RMSE evaluation (FR-6.2)  TRACE=...  FILTER=...  [STAGE=gt|rmse|all]
+STAGE ?= all
 eval:
-	@printf '[%s] [FR-6.2 eval] INFO  T3.2 eval TRACE=%s FILTER=%s -- not yet implemented\n' \
-		"$$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$(TRACE)" "$(FILTER)"
+ifeq ($(filter $(STAGE),gt all),)
+else
+	mkdir -p out/$(TRACE)
+	PYTHONPATH="src" python -m evaluation smooth \
+		--trace "$(TRACE)" \
+		--out-dir out
+endif
+ifeq ($(filter $(STAGE),rmse all),)
+else
+	PYTHONPATH="src" python -m evaluation rmse \
+		--trace  "$(TRACE)" \
+		--filter "$(FILTER)" \
+		--out-dir out \
+		--config-dir config
+endif
 
 ## ideal       : Map-match + synthesize ideal trajectory (FR-9)  TRACE=...
 ideal:
