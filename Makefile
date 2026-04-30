@@ -25,7 +25,7 @@ DATA_DIR    := $(TRACE_$(TRACE))
 # Phony targets
 # ---------------------------------------------------------------------------
 
-.PHONY: help bootstrap data fit synth ks bag fuse eval ideal ref speed score report deploy clean test
+.PHONY: help bootstrap data fit synth ks bag fuse eval ideal ref speed traj score report deploy clean test
 
 # ---------------------------------------------------------------------------
 # help -- scans ## comments to self-document all targets
@@ -175,6 +175,13 @@ ref:
 ## speed       : Compute ideal speed profile (FR-9.4)  TRACE=...
 speed:
 	PYTHONPATH="src" python -m ideal_driver speed \
+		--trace   "$(TRACE)" \
+		--out-dir out \
+		--config  config/ideal.yaml
+
+## traj        : Synthesise ideal trajectory (FR-9.5)  TRACE=...
+traj:
+	PYTHONPATH="src" python -m ideal_driver traj \
 		--trace   "$(TRACE)" \
 		--out-dir out \
 		--config  config/ideal.yaml
