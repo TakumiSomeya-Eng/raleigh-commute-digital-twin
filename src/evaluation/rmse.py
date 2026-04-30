@@ -19,6 +19,8 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+from evaluation.nees import compute_nees
+
 # Exit codes (TRD §4.5)
 _EXIT_OK = 0
 _EXIT_S1_FAIL = 4
@@ -150,6 +152,10 @@ def compute_rmse(
 
     cfg_hash = _config_hash(config_dir) if config_dir else "N/A"
 
+    # FR-6.3: NEES and GPS innovation statistics
+    _log("FR-6.2 rmse", "computing NEES (FR-6.3)")
+    nees_stats = compute_nees(fused, gt, aligned=aligned)
+
     return {
         "trip_id": trace,
         "filter": filter_name,
@@ -158,6 +164,14 @@ def compute_rmse(
         "improvement_pct": round(improvement_pct, 2),
         "per_minute_rmse_m": [round(v, 4) for v in per_min],
         "s1_pass": s1_pass,
+        "nees_mean": nees_stats["nees_mean"],
+        "nees_ci_95": nees_stats["nees_ci_95"],
+        "nees_consistent": nees_stats["nees_consistent"],
+        "nees_dof": nees_stats["nees_dof"],
+        "nees_n_samples": nees_stats["nees_n_samples"],
+        "rejection_count": nees_stats["rejection_count"],
+        "rejection_rate": nees_stats["rejection_rate"],
+        "nees_notes": nees_stats["notes"],
         "config_hash": cfg_hash,
     }
 
@@ -181,6 +195,20 @@ def run_rmse(
         f"improvement={report['improvement_pct']:.1f}%  "
         f"s1_pass={report['s1_pass']}",
     )
+    nees_str = f"{report['nees_mean']:.3f}" if report["nees_mean"] is not None else "N/A"
+    consistent_str = (
+        str(report["nees_consistent"]) if report["nees_consistent"] is not None else "N/A"
+    )
+    _log(
+        "FR-6.3 nees",
+        f"nees_mean={nees_str}  "
+        f"ci95={report['nees_ci_95']}  "
+        f"consistent={consistent_str}  "
+        f"n={report['nees_n_samples']}  "
+        f"rejections={report['rejection_count']} ({report['rejection_rate']})",
+    )
+    if report.get("nees_notes"):
+        _log("FR-6.3 nees", f"NOTE: {report['nees_notes']}")
     _log("FR-6.2 rmse", f"wrote {out_path}")
 
     if not report["s1_pass"]:
