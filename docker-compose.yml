@@ -29,8 +29,19 @@ services:
 
   valhalla:
     # Valhalla 3.5.x self-hosted map-matcher (TRD sec.5).
-    # NC tiles are downloaded or pre-generated on first run per T4.1.
+    # On first run the container downloads the NC OSM PBF and builds tiles.
+    # Tile cache lives in docker/valhalla/ -- subsequent starts skip the build.
+    # See docker/valhalla/README.md for setup and tuning notes.
     image: ghcr.io/gis-ops/docker-valhalla/valhalla:3.5.1
+    environment:
+      # NC extract from Geofabrik (~350 MB).  Downloaded on first run only.
+      - tile_urls=https://download.geofabrik.de/north-america/us/north-carolina-latest.osm.pbf
+      # Skip PBF re-download when tiles already exist.
+      - use_tiles_ignore_pbf=True
+      # Skip optional datasets to speed up first-run build.
+      - build_elevation=False
+      - build_admins=True
+      - build_time_zones=False
     volumes:
       - ./docker/valhalla:/custom_files
     ports:
@@ -40,7 +51,7 @@ services:
       interval: 30s
       timeout: 10s
       retries: 5
-      start_period: 60s
+      start_period: 120s
     networks:
       - rct-net
 

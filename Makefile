@@ -153,10 +153,14 @@ else
 		--out-dir out
 endif
 
-## ideal       : Map-match + synthesize ideal trajectory (FR-9)  TRACE=...
+## ideal       : Map-match + synthesize ideal trajectory (FR-9)  TRACE=...  [VALHALLA_URL=http://localhost:8002]
+VALHALLA_URL ?= http://localhost:8002
 ideal:
-	@printf '[%s] [FR-9.1 ideal] INFO  T4.1 ideal TRACE=%s -- not yet implemented\n' \
-		"$$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$(TRACE)"
+	PYTHONPATH="src" python -m ideal_driver match \
+		--trace   "$(TRACE)" \
+		--out-dir out \
+		--config  config/data_gen.yaml \
+		--url     "$(VALHALLA_URL)"
 
 ## score       : Compute score.json + tip lookup (FR-10.7)  TRACE=...
 score:
