@@ -25,7 +25,7 @@ DATA_DIR    := $(TRACE_$(TRACE))
 # Phony targets
 # ---------------------------------------------------------------------------
 
-.PHONY: help bootstrap data fit synth ks bag fuse eval ideal ref score report deploy clean test
+.PHONY: help bootstrap data fit synth ks bag fuse eval ideal ref speed score report deploy clean test
 
 # ---------------------------------------------------------------------------
 # help -- scans ## comments to self-document all targets
@@ -171,6 +171,13 @@ ref:
 		--config  config/ideal.yaml \
 		--speed-limits config/speed_limits.yaml \
 		$(if $(SKIP_OVERPASS),--skip-overpass,)
+
+## speed       : Compute ideal speed profile (FR-9.4)  TRACE=...
+speed:
+	PYTHONPATH="src" python -m ideal_driver speed \
+		--trace   "$(TRACE)" \
+		--out-dir out \
+		--config  config/ideal.yaml
 
 ## score       : Compute score.json + tip lookup (FR-10.7)  TRACE=...
 score:
