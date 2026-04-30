@@ -25,7 +25,7 @@ DATA_DIR    := $(TRACE_$(TRACE))
 # Phony targets
 # ---------------------------------------------------------------------------
 
-.PHONY: help bootstrap data fit synth ks bag fuse eval ideal score report deploy clean test
+.PHONY: help bootstrap data fit synth ks bag fuse eval ideal ref score report deploy clean test
 
 # ---------------------------------------------------------------------------
 # help -- scans ## comments to self-document all targets
@@ -161,6 +161,16 @@ ideal:
 		--out-dir out \
 		--config  config/data_gen.yaml \
 		--url     "$(VALHALLA_URL)"
+
+## ref         : Extract road centerline reference path (FR-9.3)  TRACE=...  [SKIP_OVERPASS=1]
+SKIP_OVERPASS ?=
+ref:
+	PYTHONPATH="src" python -m ideal_driver ref \
+		--trace   "$(TRACE)" \
+		--out-dir out \
+		--config  config/ideal.yaml \
+		--speed-limits config/speed_limits.yaml \
+		$(if $(SKIP_OVERPASS),--skip-overpass,)
 
 ## score       : Compute score.json + tip lookup (FR-10.7)  TRACE=...
 score:
