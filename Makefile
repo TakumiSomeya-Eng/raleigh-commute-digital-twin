@@ -128,7 +128,7 @@ fuse:
 		--filter "$(FILTER)" \
 		--out-dir out
 
-## eval        : Compute RMSE evaluation (FR-6.2)  TRACE=...  FILTER=...  [STAGE=gt|rmse|all]
+## eval        : Compute RMSE evaluation (FR-6.2/6.4)  TRACE=...  FILTER=...  [STAGE=gt|rmse|compare|all]
 STAGE ?= all
 eval:
 ifeq ($(filter $(STAGE),gt all),)
@@ -145,6 +145,12 @@ else
 		--filter "$(FILTER)" \
 		--out-dir out \
 		--config-dir config
+endif
+ifeq ($(filter $(STAGE),compare all),)
+else
+	PYTHONPATH="src" python -m evaluation compare \
+		--trace  "$(TRACE)" \
+		--out-dir out
 endif
 
 ## ideal       : Map-match + synthesize ideal trajectory (FR-9)  TRACE=...
