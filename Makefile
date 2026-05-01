@@ -195,13 +195,16 @@ score:
 		--config  config/scoring.yaml \
 		--ideal-config config/ideal.yaml
 
-## report      : Render HTML report (FR-11.1)  TRACE=...
+## report      : Render HTML report + index (FR-11.1/11.4)  TRACE=...
 report:
 	PYTHONPATH="src" python -m reporting render \
 		--trace  "$(TRACE)" \
 		--out-dir out \
 		--config  config/scoring.yaml \
 		--ideal-config config/ideal.yaml
+	PYTHONPATH="src" python -m reporting index \
+		--out-dir out \
+		--ratings config/ratings.yaml
 
 ## deploy      : Deploy to AWS (Phase 2 -- deferred)
 deploy:
