@@ -186,10 +186,14 @@ traj:
 		--out-dir out \
 		--config  config/ideal.yaml
 
-## score       : Compute score.json + tip lookup (FR-10.7)  TRACE=...
+## score       : Compute score.json + tip lookup (FR-10.7)  TRACE=...  FILTER=ekf|ukf
 score:
-	@printf '[%s] [FR-10.7 score] INFO  T4.7 score TRACE=%s FILTER=%s -- not yet implemented\n' \
-		"$$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$(TRACE)" "$(FILTER)"
+	PYTHONPATH="src" python -m scoring score \
+		--trace   "$(TRACE)" \
+		--filter  "$(FILTER)" \
+		--out-dir out \
+		--config  config/scoring.yaml \
+		--ideal-config config/ideal.yaml
 
 ## report      : Render HTML report (FR-11.1)  TRACE=...
 report:
