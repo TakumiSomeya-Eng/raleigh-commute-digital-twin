@@ -1,8 +1,300 @@
-{# FR-11.1 — Per-trip report template. Implemented in task T5.1. #}
+{# FR-11.1 -- Per-trip report template. Implemented in task T5.1. #}
 <!DOCTYPE html>
 <html lang="en">
-<head><meta charset="utf-8"><title>Trip Report — {{ trip_id }}</title></head>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Trip Report &mdash; {{ trip_id }}</title>
+<style>
+  /* Reset & base */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: #1e1e2e;
+    color: #cdd6f4;
+    min-height: 100vh;
+    padding: 0 0 40px 0;
+  }
+  a { color: #89b4fa; }
+
+  /* Header banner */
+  .header {
+    background: linear-gradient(135deg, #181825 0%, #313244 100%);
+    border-bottom: 2px solid #585b70;
+    padding: 24px 32px 20px;
+  }
+  .header h1 {
+    font-size: 1.6rem;
+    font-weight: 700;
+    color: #cdd6f4;
+    letter-spacing: 0.02em;
+  }
+  .header .subtitle {
+    font-size: 0.85rem;
+    color: #6c7086;
+    margin-top: 4px;
+  }
+
+  /* Score hero */
+  .score-hero {
+    display: flex;
+    align-items: center;
+    gap: 32px;
+    background: #181825;
+    border: 1px solid #45475a;
+    border-radius: 12px;
+    padding: 20px 28px;
+    margin: 24px 32px 0;
+    flex-wrap: wrap;
+  }
+  .score-big {
+    font-size: 3.8rem;
+    font-weight: 800;
+    line-height: 1;
+    color: {{ score_color }};
+  }
+  .score-label {
+    font-size: 0.75rem;
+    color: #6c7086;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+  .tip-box {
+    background: #313244;
+    border-radius: 8px;
+    padding: 12px 20px;
+    text-align: center;
+    min-width: 130px;
+  }
+  .tip-pct {
+    font-size: 2.2rem;
+    font-weight: 700;
+    color: #a6e3a1;
+  }
+  .tip-band {
+    font-size: 0.8rem;
+    color: #6c7086;
+    margin-top: 2px;
+  }
+  .disclaimer {
+    font-size: 0.72rem;
+    color: #f38ba8;
+    background: #3d1a1a;
+    border: 1px solid #f38ba840;
+    border-radius: 6px;
+    padding: 6px 12px;
+    max-width: 320px;
+    line-height: 1.4;
+  }
+
+  /* Trip stats strip */
+  .stats-strip {
+    display: flex;
+    gap: 12px;
+    margin: 16px 32px 0;
+    flex-wrap: wrap;
+  }
+  .stat-card {
+    background: #181825;
+    border: 1px solid #45475a;
+    border-radius: 8px;
+    padding: 10px 18px;
+    min-width: 110px;
+  }
+  .stat-val {
+    font-size: 1.3rem;
+    font-weight: 700;
+    color: #89dceb;
+  }
+  .stat-key {
+    font-size: 0.72rem;
+    color: #6c7086;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-top: 2px;
+  }
+
+  /* Section wrappers */
+  .section {
+    margin: 24px 32px 0;
+  }
+  .section-title {
+    font-size: 0.9rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #a6adc8;
+    margin-bottom: 12px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid #313244;
+  }
+  .section-body {
+    background: #181825;
+    border: 1px solid #313244;
+    border-radius: 10px;
+    padding: 16px 20px;
+    overflow-x: auto;
+  }
+
+  /* Map container */
+  .map-wrap {
+    border-radius: 10px;
+    overflow: hidden;
+    border: 1px solid #313244;
+    min-height: 420px;
+  }
+  .map-wrap iframe,
+  .map-wrap > div {
+    border-radius: 10px !important;
+  }
+  .map-legend {
+    display: flex;
+    gap: 20px;
+    margin-top: 8px;
+    font-size: 0.8rem;
+    color: #a6adc8;
+    flex-wrap: wrap;
+  }
+  .legend-dot {
+    display: inline-block;
+    width: 12px; height: 4px;
+    border-radius: 2px;
+    vertical-align: middle;
+    margin-right: 5px;
+  }
+
+  /* Footer */
+  .footer {
+    margin: 32px 32px 0;
+    font-size: 0.72rem;
+    color: #45475a;
+    border-top: 1px solid #313244;
+    padding-top: 12px;
+  }
+</style>
+</head>
 <body>
-  <p>Report template — implemented in T5.1.</p>
+
+<!-- ===================== HEADER ===================== -->
+<div class="header">
+  <h1>&#128661; Trip Report &mdash; {{ trip_id }}</h1>
+  <div class="subtitle">
+    Scored {{ timestamp_str }} &nbsp;&middot;&nbsp;
+    Filter: {{ fused_source | upper }} &nbsp;&middot;&nbsp;
+    Config: <code>{{ config_hash_short }}&hellip;</code>
+  </div>
+</div>
+
+<!-- ===================== SCORE HERO ===================== -->
+<div class="score-hero">
+  <div>
+    <div class="score-label">Aggregate Score</div>
+    <div class="score-big">{{ "%.1f"|format(score_0_100) }}</div>
+    <div style="font-size:0.8rem; color:#6c7086; margin-top:4px;">out of 100</div>
+  </div>
+
+  <div class="tip-box">
+    <div style="font-size:0.75rem; color:#6c7086; margin-bottom:4px;">Suggested tip</div>
+    <div class="tip-pct">{{ suggested_tip_pct }}%</div>
+    <div class="tip-band">Band {{ suggested_tip_band }}</div>
+  </div>
+
+  <div class="disclaimer">
+    &#9888;&nbsp;<strong>{{ notes }}</strong>
+  </div>
+</div>
+
+<!-- ===================== TRIP STATS ===================== -->
+<div class="stats-strip">
+  <div class="stat-card">
+    <div class="stat-val">{{ meta.duration_str }}</div>
+    <div class="stat-key">Duration</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-val">{{ "%.1f"|format(meta.distance_km) }} km</div>
+    <div class="stat-key">Distance</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-val">{{ "%.0f"|format(meta.max_speed_kph) }} km/h</div>
+    <div class="stat-key">Max speed</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-val">{{ "%.0f"|format(meta.max_speed_mph) }} mph</div>
+    <div class="stat-key">Max speed</div>
+  </div>
+</div>
+
+<!-- ===================== COMPONENT BREAKDOWN ===================== -->
+<div class="section">
+  <div class="section-title">&#128200; Component Breakdown</div>
+  <div class="section-body">
+    {{ bar_svg | safe }}
+  </div>
+</div>
+
+<!-- ===================== MAP OVERLAY ===================== -->
+<div class="section">
+  <div class="section-title">&#128506; Route Map</div>
+  <div class="map-wrap">
+    {{ map_html | safe }}
+  </div>
+  <div class="map-legend">
+    <span><span class="legend-dot" style="background:#e64553;"></span>Actual trajectory</span>
+    <span><span class="legend-dot" style="background:#40a02b; border-top: 2px dashed #40a02b;"></span>Ideal trajectory</span>
+    <span>&#128308; Start &nbsp; &#128309; End &nbsp; &#9888; Harsh brake</span>
+  </div>
+</div>
+
+<!-- ===================== SCORE DETAIL TABLE ===================== -->
+<div class="section">
+  <div class="section-title">&#128203; Score Detail</div>
+  <div class="section-body">
+    <table style="width:100%; border-collapse:collapse; font-size:0.85rem;">
+      <thead>
+        <tr style="color:#6c7086; font-size:0.75rem; text-transform:uppercase;">
+          <th style="text-align:left; padding:6px 8px;">Component</th>
+          <th style="text-align:right; padding:6px 8px;">Raw penalty</th>
+          <th style="text-align:right; padding:6px 8px;">Weight</th>
+          <th style="text-align:right; padding:6px 8px;">Weighted</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% set label_map = {
+          "jerk": "Jerk",
+          "harsh_brake": "Harsh braking",
+          "lat_accel": "Lateral accel",
+          "speed": "Speed compliance",
+          "deviation": "Route deviation",
+          "lane_change": "Lane changes"
+        } %}
+        {% for name, comp in score_doc.components.items() %}
+        <tr style="border-top: 1px solid #313244;">
+          <td style="padding:6px 8px; color:#cdd6f4;">{{ label_map.get(name, name) }}</td>
+          <td style="text-align:right; padding:6px 8px; font-family:monospace;">{{ "%.4f"|format(comp.raw) }}</td>
+          <td style="text-align:right; padding:6px 8px; font-family:monospace; color:#6c7086;">{{ "%.2f"|format(comp.weight) }}</td>
+          <td style="text-align:right; padding:6px 8px; font-family:monospace;">{{ "%.4f"|format(comp.weighted) }}</td>
+        </tr>
+        {% endfor %}
+        <tr style="border-top: 2px solid #585b70; font-weight:700;">
+          <td style="padding:8px 8px; color:#cdd6f4;">Aggregate</td>
+          <td style="text-align:right; padding:8px 8px; font-family:monospace;">{{ "%.4f"|format(aggregate_raw) }}</td>
+          <td style="text-align:right; padding:8px 8px; font-family:monospace; color:#6c7086;">1.00</td>
+          <td style="text-align:right; padding:8px 8px; font-family:monospace; color:{{ score_color }};">
+            Score: {{ "%.1f"|format(score_0_100) }} / 100
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ===================== FOOTER ===================== -->
+<div class="footer">
+  Generated by Raleigh Commute Digital Twin &nbsp;&middot;&nbsp;
+  {{ timestamp_str }} &nbsp;&middot;&nbsp;
+  config sha256: {{ config_hash_short }}&hellip; &nbsp;&middot;&nbsp;
+  <em>{{ notes }}</em>
+</div>
+
 </body>
 </html>

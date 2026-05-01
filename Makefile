@@ -197,8 +197,11 @@ score:
 
 ## report      : Render HTML report (FR-11.1)  TRACE=...
 report:
-	@printf '[%s] [FR-11.1 report] INFO  T5.1 report TRACE=%s -- not yet implemented\n' \
-		"$$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$(TRACE)"
+	PYTHONPATH="src" python -m reporting render \
+		--trace  "$(TRACE)" \
+		--out-dir out \
+		--config  config/scoring.yaml \
+		--ideal-config config/ideal.yaml
 
 ## deploy      : Deploy to AWS (Phase 2 -- deferred)
 deploy:
