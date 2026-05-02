@@ -136,15 +136,29 @@
     overflow-x: auto;
   }
 
-  /* Map container */
+  /* Map container -- override Folium's padding-bottom:60% trick with a
+     fixed 460px height so content below the map is not pushed off-screen. */
   .map-wrap {
     border-radius: 10px;
     overflow: hidden;
     border: 1px solid #313244;
-    min-height: 420px;
+    height: 460px;
   }
-  .map-wrap iframe,
-  .map-wrap > div {
+  /* Force Folium's generated wrapper divs to fill the container */
+  .map-wrap > div,
+  .map-wrap > div > div {
+    width: 100% !important;
+    height: 460px !important;
+    padding-bottom: 0 !important;
+    position: relative !important;
+    border-radius: 10px !important;
+  }
+  .map-wrap iframe {
+    position: absolute !important;
+    width: 100% !important;
+    height: 100% !important;
+    left: 0 !important;
+    top: 0 !important;
     border-radius: 10px !important;
   }
   .map-legend {

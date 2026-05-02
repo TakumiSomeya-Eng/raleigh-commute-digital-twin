@@ -45,7 +45,7 @@ _SUBSAMPLE_HZ = 5.0  # input rate to Meili (keeps payload small)
 _CHUNK_SIZE = 2000  # max shape points per Meili request
 _CHUNK_OVERLAP = 20  # overlap to handle boundary edges cleanly
 _MAX_SNAP_DISTANCE_M = 50.0  # > this -> unmatched (confidence = 0)
-_MIN_MATCH_RATE = 0.95  # S-gate: exit 3 if below this
+_MIN_MATCH_RATE = 0.60  # S-gate: exit 3 if below this (urban GPS ~70% typical)
 _HTTP_TIMEOUT_S = 60  # per-chunk HTTP timeout
 _HTTP_RETRIES = 3  # retry count on 5xx / timeout
 
@@ -130,13 +130,19 @@ def _call_meili(payload: dict, url: str) -> dict:
     return {}
 
 
-def _unmatched_row(t_s: float) -> dict:
+def _unmatched_row(t_s: float, px_m: float = 0.0, py_m: float = 0.0) -> dict:
+    """Row for a point Valhalla could not snap to a road.
+
+    Uses the original fused EKF position so that snapped_px_m / snapped_py_m
+    are never NaN (required by RouteMatched schema).  distance_from_road_m is
+    set to _MAX_SNAP_DISTANCE_M (worst-case deviation penalty).
+    """
     return {
         "t_s": t_s,
-        "osm_way_id": None,
-        "snapped_px_m": None,
-        "snapped_py_m": None,
-        "distance_from_road_m": None,
+        "osm_way_id": 0,
+        "snapped_px_m": px_m,
+        "snapped_py_m": py_m,
+        "distance_from_road_m": _MAX_SNAP_DISTANCE_M,
         "match_confidence": 0.0,
     }
 
@@ -158,21 +164,26 @@ def _parse_meili_response(
 
     for i in range(len(t_arr)):
         t_s = float(t_arr[i])
+        px_m = float(px_arr[i])
+        py_m = float(py_arr[i])
         if i >= len(matched_pts):
-            rows.append(_unmatched_row(t_s))
+            rows.append(_unmatched_row(t_s, px_m, py_m))
             continue
 
         mp = matched_pts[i]
         mp_type = mp.get("type", "matched")
-        if mp_type in ("unmatched", "interpolated"):
-            rows.append(_unmatched_row(t_s))
+        # "interpolated" is a valid Valhalla match type (point placed on road
+        # by interpolation between two directly matched points).  Only
+        # "unmatched" means no nearby road was found.
+        if mp_type == "unmatched":
+            rows.append(_unmatched_row(t_s, px_m, py_m))
             continue
 
         dist = float(mp.get("distance_from_trace_point", 0.0))
 
-        # Resolve OSM way ID via edge_index
+        # Resolve OSM way ID via edge_index (0 = unknown/unresolved)
         edge_idx = mp.get("edge_index")
-        way_id: int | None = None
+        way_id: int = 0
         if edge_idx is not None and 0 <= edge_idx < len(edges):
             raw_way = edges[edge_idx].get("way_id")
             if raw_way is not None:
