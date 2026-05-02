@@ -144,7 +144,7 @@ class TestParseMeiliResponse:
         rows = _parse_meili_response(resp, t, px, py, _LAT0, _LON0)
         for r in rows:
             assert r["match_confidence"] == 0.0
-            assert r["osm_way_id"] is None
+            assert r["osm_way_id"] == 0
 
     def test_empty_response_gives_unmatched(self):
         n = 3
@@ -185,7 +185,7 @@ class TestParseMeiliResponse:
         assert abs(rows[0]["snapped_px_m"] - 100.0) < 1.0
         assert abs(rows[0]["snapped_py_m"] - 50.0) < 1.0
 
-    def test_way_id_none_when_no_edges(self):
+    def test_way_id_zero_when_no_edges(self):
         n = 1
         t, px, py = self._arrays(n)
         resp = {
@@ -201,7 +201,7 @@ class TestParseMeiliResponse:
             "edges": [],  # no edges
         }
         rows = _parse_meili_response(resp, t, px, py, _LAT0, _LON0)
-        assert rows[0]["osm_way_id"] is None
+        assert rows[0]["osm_way_id"] == 0
 
 
 # ---------------------------------------------------------------------------
