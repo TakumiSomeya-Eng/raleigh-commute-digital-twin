@@ -191,6 +191,14 @@ Full interactive report: [`docs/screenshots/report_day2.html`](docs/screenshots/
 
 The low score reflects multiple harsh-brake events visible on the Raleigh commute route.
 
+### Report preview
+
+![Score and component breakdown](docs/screenshots/report_score.png)
+
+![Route map with harsh-brake markers](docs/screenshots/report_map.png)
+
+![Score detail table](docs/screenshots/report_table.png)
+
 ---
 
 ## Design documents
