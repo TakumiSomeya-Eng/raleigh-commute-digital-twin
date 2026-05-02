@@ -1,0 +1,21 @@
+# TRD §4.7 — clang-tidy: readability, performance, and bugprone check groups.
+# Run via: clang-tidy -p build/ <file>  (requires compile_commands.json from colcon).
+# In pre-commit this hook is set to stages: [manual] until T2.x produces a build dir.
+Checks: >-
+  readability-*,
+  performance-*,
+  bugprone-*,
+  -readability-magic-numbers,
+  -readability-named-parameter,
+  -readability-function-cognitive-complexity,
+  -bugprone-easily-swappable-parameters
+
+WarningsAsErrors: ""
+
+# Only apply header checks to our own headers.
+HeaderFilterRegex: "src/localization/include/.*"
+
+# Inherit formatting from .clang-format.
+FormatStyle: file
+
+CheckOptions: []

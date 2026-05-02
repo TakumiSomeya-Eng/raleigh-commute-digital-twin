@@ -1,70 +1,212 @@
-# Raleigh Commute Digital Twin — top-level Makefile
-# Full implementation: task T0.4.
-# Trace name → raw data directory mapping (agreed in project setup).
-TRACE_day1 := Data/Saint_Marys_Street-2026-04-16_13-27-45
-TRACE_day2 := Data/Saint_Marys_Street-2026-04-17_13-20-03
+# Raleigh Commute Digital Twin -- top-level Makefile (T0.4 / FR-7.1)
+#
+# Usage:
+#   make help
+#   make test
+#   make clean
+#   make data  TRACE=day2
+#   make fuse  TRACE=day2 FILTER=ukf
+#   make synth N_SCENARIOS=20
 
-# Resolve TRACE variable to DATA_DIR.  Usage: make data TRACE=day2
-DATA_DIR := $(TRACE_$(TRACE))
+# ---------------------------------------------------------------------------
+# Variables
+# ---------------------------------------------------------------------------
 
-# Default values
-TRACE    ?= day2
-FILTER   ?= ekf
+TRACE       ?= day2
+FILTER      ?= ekf
 N_SCENARIOS ?= 10
 
-.PHONY: help bootstrap data synth bag fuse eval ideal score report deploy clean test
+# Raw-data directories (relative from this worktree to the project Data/ folder).
+TRACE_day1 := ../../../Data/Saint_Marys_Street-2026-04-16_13-27-45
+TRACE_day2 := ../../../Data/Saint_Marys_Street-2026-04-17_13-20-03
+DATA_DIR    := $(TRACE_$(TRACE))
+
+# ---------------------------------------------------------------------------
+# Phony targets
+# ---------------------------------------------------------------------------
+
+.PHONY: help bootstrap data fit synth ks bag fuse eval ideal ref speed traj score report deploy clean test
+
+# ---------------------------------------------------------------------------
+# help -- scans ## comments to self-document all targets
+# ---------------------------------------------------------------------------
 
 ## help        : List all targets with descriptions
 help:
 	@grep -E '^## ' $(MAKEFILE_LIST) | sed 's/^## /  /'
 
-## bootstrap   : Install pre-commit hooks, verify Docker (T0.4 / T7.4)
-bootstrap:
-	@echo "[T0.4] bootstrap — not yet implemented"
+# ---------------------------------------------------------------------------
+# clean -- idempotent; rm -rf is a no-op when dirs do not exist
+# ---------------------------------------------------------------------------
 
-## data        : Ingest raw CSVs → aligned Parquet  (T1.3)  TRACE=day1|day2
-data:
-	@echo "[T1.3] data TRACE=$(TRACE) DATA_DIR=$(DATA_DIR) — not yet implemented"
-
-## synth       : Generate synthetic scenarios  (T1.5)
-synth:
-	@echo "[T1.5] synth N=$(N_SCENARIOS) — not yet implemented"
-
-## bag         : Convert Parquet → MCAP bag  (T2.1)  TRACE=...
-bag:
-	@echo "[T2.1] bag TRACE=$(TRACE) — not yet implemented"
-
-## fuse        : Run EKF/UKF fusion  (T2.5/T2.7)  TRACE=...  FILTER=ekf|ukf
-fuse:
-	@echo "[T2.5] fuse TRACE=$(TRACE) FILTER=$(FILTER) — not yet implemented"
-
-## eval        : Compute RMSE, NEES  (T3.2/T3.3)  TRACE=...  FILTER=...
-eval:
-	@echo "[T3.2] eval TRACE=$(TRACE) FILTER=$(FILTER) — not yet implemented"
-
-## ideal       : Map-match + synthesize ideal trajectory  (T4.1–T4.4)  TRACE=...
-ideal:
-	@echo "[T4.1] ideal TRACE=$(TRACE) — not yet implemented"
-
-## score       : Compute score.json  (T4.7)  TRACE=...
-score:
-	@echo "[T4.7] score TRACE=$(TRACE) — not yet implemented"
-
-## report      : Render HTML report  (T5.1)  TRACE=...
-report:
-	@echo "[T5.1] report TRACE=$(TRACE) — not yet implemented"
-
-## deploy      : Deploy to AWS  (Phase 2)
-deploy:
-	@echo "[Phase 2] deploy — deferred to Phase 2"
-
-## test        : Run pytest + ctest
-test:
-	pytest
-	@echo "[T0.4] ctest — not yet wired"
-
-## clean       : Remove out/ and build/
+## clean       : Remove out/ and build/ (idempotent)
 clean:
 	rm -rf out/ build/
-	mkdir -p out
-	@echo "[clean] Done."
+	@printf '[%s] [FR-7.1 clean] INFO  Removed out/ and build/\n' \
+		"$$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+# ---------------------------------------------------------------------------
+# test -- pytest (exit 5 = no tests yet -> OK) + ctest if build/ exists
+# ---------------------------------------------------------------------------
+
+## test        : Run pytest (Python) and ctest (C++); exit 0 with zero tests
+test:
+	@printf '[%s] [FR-8 test] INFO  Running pytest...\n' \
+		"$$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+	@pytest -q; code=$$?; \
+	[ "$$code" -eq 5 ] && \
+		printf '[%s] [FR-8 test] INFO  No tests collected yet -- OK\n' \
+		"$$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+	|| [ "$$code" -eq 0 ] \
+	|| exit $$code
+	@if [ -f build/CTestTestfile.cmake ]; then \
+		printf '[%s] [FR-8.2 test] INFO  Running ctest...\n' \
+			"$$(date -u +%Y-%m-%dT%H:%M:%SZ)"; \
+		cd build && ctest --output-on-failure; \
+	else \
+		printf '[%s] [FR-8.2 test] INFO  No C++ build found -- skipping ctest\n' \
+			"$$(date -u +%Y-%m-%dT%H:%M:%SZ)"; \
+	fi
+	@printf '[%s] [FR-8 test] INFO  Done\n' \
+		"$$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+# ---------------------------------------------------------------------------
+# Stub targets -- implemented in later tasks; all exit 0 so CI passes early
+# Log format: TRD sec.4.4  [ISO-8601Z] [FR-x.y stage] INFO  message
+# ---------------------------------------------------------------------------
+
+## bootstrap   : Set up dev environment (pre-commit, Docker images) (FR-7.4)
+bootstrap:
+	@printf '[%s] [FR-7.4 bootstrap] INFO  T0.4 bootstrap -- not yet implemented\n' \
+		"$$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+## data        : Ingest raw CSVs -> aligned_100hz.parquet (FR-1.5)  TRACE=day1|day2
+data:
+	python -m data_engine ingest \
+		--trace    "$(TRACE)" \
+		--data-dir "$(DATA_DIR)" \
+		--out-dir  out
+
+## fit         : Fit noise distributions from aligned Parquet (FR-2.1)  TRACE=day1|day2
+fit:
+	python -m data_engine fit \
+		--traces  "$(TRACE)" \
+		--out-dir out
+
+## synth       : Generate N synthetic scenarios from base trace (FR-2.2)  TRACE=day2 N_SCENARIOS=10
+synth:
+	python -m data_engine synth \
+		--base      "$(TRACE)" \
+		--n         "$(N_SCENARIOS)" \
+		--out-dir   out
+
+## ks          : Run KS-test gate real vs. synthetic (FR-2.3)  TRACE=day2
+ks:
+	python -m data_engine ks \
+		--real  "out/$(TRACE)" \
+		--synth out/synthetic \
+		--out   gates/p1_ks.json
+
+## fixture     : Generate tests/fixtures/tiny_{TRACE}_60s/trip.mcap (60 s slice)
+fixture:
+	PYTHONPATH="src" python scripts/make_fixtures.py \
+		--trace  "$(TRACE)" \
+		--out-dir tests/fixtures
+
+## bag         : Convert aligned Parquet -> MCAP bag (FR-3.1)  TRACE=...
+bag:
+	PYTHONPATH="src" python -m bag_bridge.parquet_to_mcap \
+		--parquet  "out/$(TRACE)/aligned_100hz.parquet" \
+		--noise-fit "config/noise_fit_$(TRACE).yaml" \
+		--out-dir  "out/$(TRACE)"
+
+## fuse        : Run EKF/UKF sensor fusion (FR-4.2/5.2)  TRACE=...  FILTER=ekf|ukf
+fuse:
+	mkdir -p out/$(TRACE)
+	PYTHONPATH="src" python scripts/run_fuse.py \
+		--trace  "$(TRACE)" \
+		--filter "$(FILTER)" \
+		--out-dir out
+
+## eval        : Compute RMSE evaluation (FR-6.2/6.4)  TRACE=...  FILTER=...  [STAGE=gt|rmse|compare|all]
+STAGE ?= all
+eval:
+ifeq ($(filter $(STAGE),gt all),)
+else
+	mkdir -p out/$(TRACE)
+	PYTHONPATH="src" python -m evaluation smooth \
+		--trace "$(TRACE)" \
+		--out-dir out
+endif
+ifeq ($(filter $(STAGE),rmse all),)
+else
+	PYTHONPATH="src" python -m evaluation rmse \
+		--trace  "$(TRACE)" \
+		--filter "$(FILTER)" \
+		--out-dir out \
+		--config-dir config
+endif
+ifeq ($(filter $(STAGE),compare all),)
+else
+	PYTHONPATH="src" python -m evaluation compare \
+		--trace  "$(TRACE)" \
+		--out-dir out
+endif
+
+## ideal       : Map-match + synthesize ideal trajectory (FR-9)  TRACE=...  [VALHALLA_URL=http://localhost:8002]
+VALHALLA_URL ?= http://localhost:8002
+ideal:
+	PYTHONPATH="src" python -m ideal_driver match \
+		--trace   "$(TRACE)" \
+		--out-dir out \
+		--config  config/data_gen.yaml \
+		--url     "$(VALHALLA_URL)"
+
+## ref         : Extract road centerline reference path (FR-9.3)  TRACE=...  [SKIP_OVERPASS=1]
+SKIP_OVERPASS ?=
+ref:
+	PYTHONPATH="src" python -m ideal_driver ref \
+		--trace   "$(TRACE)" \
+		--out-dir out \
+		--config  config/ideal.yaml \
+		--speed-limits config/speed_limits.yaml \
+		$(if $(SKIP_OVERPASS),--skip-overpass,)
+
+## speed       : Compute ideal speed profile (FR-9.4)  TRACE=...
+speed:
+	PYTHONPATH="src" python -m ideal_driver speed \
+		--trace   "$(TRACE)" \
+		--out-dir out \
+		--config  config/ideal.yaml
+
+## traj        : Synthesise ideal trajectory (FR-9.5)  TRACE=...
+traj:
+	PYTHONPATH="src" python -m ideal_driver traj \
+		--trace   "$(TRACE)" \
+		--out-dir out \
+		--config  config/ideal.yaml
+
+## score       : Compute score.json + tip lookup (FR-10.7)  TRACE=...  FILTER=ekf|ukf
+score:
+	PYTHONPATH="src" python -m scoring score \
+		--trace   "$(TRACE)" \
+		--filter  "$(FILTER)" \
+		--out-dir out \
+		--config  config/scoring.yaml \
+		--ideal-config config/ideal.yaml
+
+## report      : Render HTML report + index (FR-11.1/11.4)  TRACE=...
+report:
+	PYTHONPATH="src" python -m reporting render \
+		--trace  "$(TRACE)" \
+		--out-dir out \
+		--config  config/scoring.yaml \
+		--ideal-config config/ideal.yaml
+	PYTHONPATH="src" python -m reporting index \
+		--out-dir out \
+		--ratings config/ratings.yaml
+
+## deploy      : Deploy to AWS (Phase 2 -- deferred)
+deploy:
+	@printf '[%s] [Phase-2 deploy] INFO  deploy -- deferred to Phase 2\n' \
+		"$$(date -u +%Y-%m-%dT%H:%M:%SZ)"

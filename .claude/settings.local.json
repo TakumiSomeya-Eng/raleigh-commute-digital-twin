@@ -1,0 +1,23 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(docker run *)",
+      "Bash(docker compose *)",
+      "Bash(docker version *)",
+      "Bash(docker build *)",
+      "Bash(docker image *)",
+      "Bash(awk -F': ' '{printf \"Size: %.2f GB\\\\n\", $2/1073741824}')",
+      "Bash(awk '{printf \"Size: %.2f GB\\\\n\", $1/1073741824}')",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(pre-commit --version)",
+      "Bash(python3.11 --version)",
+      "Bash(pip install *)",
+      "Bash(pre-commit install *)",
+      "Bash(pre-commit run *)",
+      "Bash(python -c ' *)",
+      "Bash(del lint_fix.log)",
+      "Bash(python -m yamllint -c .yamllint .)"
+    ]
+  }
+}

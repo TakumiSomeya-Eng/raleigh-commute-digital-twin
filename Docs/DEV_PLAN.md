@@ -29,6 +29,7 @@ Every task has the following fields:
 **Phase gates:** each phase ends with a gate that must be green before the next phase starts. Gates are italicized at the end of each phase section.
 
 **Conventions:**
+
 - Commit messages follow `{task_id}: {imperative verb} {object}` — e.g. `T1.3: add ENU projection with round-trip test`.
 - PR titles match commit messages for single-task PRs; multi-task PRs list all IDs.
 - Branch names: `{phase_id}/{task_id}-{kebab-name}` — e.g. `phase1/T1.3-enu-projection`.

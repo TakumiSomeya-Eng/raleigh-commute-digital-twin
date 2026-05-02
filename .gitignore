@@ -48,3 +48,14 @@ log/
 *.swp
 *.swo
 *~
+
+# Valhalla generated tile cache and build artifacts (large, machine-specific)
+docker/valhalla/valhalla_tiles/
+docker/valhalla/valhalla_tiles.tar
+docker/valhalla/admin_data/
+docker/valhalla/valhalla.json
+docker/valhalla/config.json
+docker/valhalla/file_hashes.txt
+docker/valhalla/duplicateways.txt
+docker/valhalla/*.pbf
+docker/valhalla/*.osm

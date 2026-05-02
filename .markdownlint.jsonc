@@ -1,0 +1,19 @@
+{
+  // TRD section 4.7 -- markdownlint configuration (CommonMark).
+
+  // MD013: line-length -- disabled because tables and fenced code blocks
+  // routinely produce lines that exceed any reasonable limit.
+  "MD013": false,
+
+  // MD024: no-duplicate-heading -- disabled because design docs repeat
+  // section-level headings (e.g. "DoD", "Blockers") across tasks.
+  "MD024": false,
+
+  // MD040: fenced-code-language -- disabled for design docs that use plain
+  // fenced blocks for ASCII diagrams and directory trees.
+  "MD040": false,
+
+  // MD056: table-column-count -- disabled because pipe characters inside
+  // inline code spans (e.g. |j| in math notation) are counted as delimiters.
+  "MD056": false
+}

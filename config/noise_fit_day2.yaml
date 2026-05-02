@@ -1,0 +1,64 @@
+schema_version: '1.0'
+generated_at_utc: '2026-04-26T03:12:50.592998+00:00'
+trip_id: day2
+n_samples: 88949
+channels:
+  ax_mps2:
+    dist: gaussian
+    loc: 1.38e-06
+    scale: 0.20965006
+  ay_mps2:
+    dist: gaussian
+    loc: 2.29e-06
+    scale: 0.18278521
+  az_mps2:
+    dist: gaussian
+    loc: -8.31e-06
+    scale: 0.31269497
+  gx_rps:
+    dist: gaussian
+    loc: 9.51e-06
+    scale: 0.27174036
+  gy_rps:
+    dist: gaussian
+    loc: -1.131e-05
+    scale: 0.2828857
+  gz_rps:
+    dist: gaussian
+    loc: 1.062e-05
+    scale: 0.15353533
+  grav_x:
+    dist: gaussian
+    loc: 0.00029244
+    scale: 0.32234272
+  grav_y:
+    dist: gaussian
+    loc: 0.00011797
+    scale: 0.33505592
+  grav_z:
+    dist: gaussian
+    loc: 2.021e-05
+    scale: 0.24822785
+  mag_x_uT:
+    dist: gaussian
+    loc: -0.0006675
+    scale: 1.18518116
+  mag_y_uT:
+    dist: gaussian
+    loc: 0.00052527
+    scale: 1.54580894
+  mag_z_uT:
+    dist: gaussian
+    loc: -0.00124605
+    scale: 1.24647512
+  speed_accuracy_mps:
+    dist: gaussian
+    loc: 1.4332024
+    scale: 0.64367893
+  horizontal_accuracy_m:
+    dist: rayleigh
+    scale: 2.01768795
+  gps_bearing_deg:
+    dist: von_mises
+    kappa: 3119.70071597
+    loc: -1.779e-05

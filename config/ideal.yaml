@@ -1,11 +1,11 @@
-# FR-9 — Ideal driver policy parameters.
-# Implemented in tasks T4.1 – T4.4.
+# FR-9 -- Ideal driver policy parameters.
+# Implemented in tasks T4.1 - T4.4.
 
-# Kinematic limits for the ideal driver (from PRD §5.4).
+# Kinematic limits for the ideal driver (from PRD sec.5.4).
 limits:
-  # Max longitudinal acceleration (m/s^2) — gentle acceleration.
+  # Max longitudinal acceleration (m/s^2) -- gentle acceleration.
   max_accel_lon_mps2: 1.5
-  # Max longitudinal deceleration (m/s^2) — firm but not harsh.
+  # Max longitudinal deceleration (m/s^2) -- firm but not harsh.
   max_decel_lon_mps2: 2.5
   # Max lateral acceleration in turns (m/s^2).
   max_accel_lat_mps2: 2.0

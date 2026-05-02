@@ -1,7 +1,9 @@
-# Raw data and outputs — never baked into images
-Data/
-data/
+# Generated outputs — never baked into images
 out/
+
+# Raw trace data
+data/
+Data/
 
 # Git history
 .git/
@@ -14,6 +16,16 @@ __pycache__/
 .pytest_cache/
 *.egg-info/
 
+# C++ build artifacts
+build/
+install/
+log/
+
 # Editor artifacts
 .vscode/
 .idea/
+
+# CI / local config not needed in images
+.github/
+infra/
+Docs/

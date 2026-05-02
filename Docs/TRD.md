@@ -102,6 +102,7 @@ class Aligned100Hz(BaseModel):
 ```
 
 Constraints:
+
 - No NaNs except the first 0.5 s (warm-up drop).
 - `t_s` monotonic increasing in 0.01 s steps.
 - `gps_interpolated == False` at most ~1 % of rows (approx. 1 Hz real GPS in 100 Hz grid).

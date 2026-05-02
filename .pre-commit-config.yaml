@@ -1,6 +1,10 @@
-# FR-8.4 — Pre-commit hooks configuration.
-# Fully implemented in task T0.3. Stub only.
+# TRD sec.4.7, sec.6.6 -- Pre-commit hooks configuration.
+# Install: pre-commit install
+# Run all:  pre-commit run --all-files
+# Manual (clang-tidy): pre-commit run --hook-stage manual clang-tidy
+
 repos:
+  # -- Standard file hygiene --------------------------------------------------
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.6.0
     hooks:
@@ -8,3 +12,49 @@ repos:
         args: ["--maxkb=2048"]
       - id: trailing-whitespace
       - id: end-of-file-fixer
+
+  # -- Python: ruff lint + format (TRD sec.4.7, ruff 0.5.x) --------------------
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.5.0
+    hooks:
+      - id: ruff
+        args: ["--fix"]
+      - id: ruff-format
+
+  # -- C++: clang-format (TRD sec.4.7, Google style, 100-col, clang 17) ---------
+  - repo: https://github.com/pre-commit/mirrors-clang-format
+    rev: v17.0.6
+    hooks:
+      - id: clang-format
+        types_or: [c++, c]
+
+  # -- C++: clang-tidy (manual stage -- needs compile_commands.json, T2.x+) ---
+  - repo: https://github.com/pocc/pre-commit-hooks
+    rev: v1.3.5
+    hooks:
+      - id: clang-tidy
+        args: ["--checks=readability-*,performance-*,bugprone-*"]
+        stages: [manual]
+
+  # -- Dockerfile: hadolint (TRD sec.4.7, hadolint 2.12.x) ---------------------
+  - repo: https://github.com/hadolint/hadolint
+    rev: v2.12.0
+    hooks:
+      - id: hadolint-docker
+
+  # -- Markdown: markdownlint-cli2 (TRD sec.4.7, CommonMark) -------------------
+  - repo: https://github.com/DavidAnson/markdownlint-cli2
+    rev: v0.13.0
+    hooks:
+      - id: markdownlint-cli2
+
+  # -- YAML: yamllint (TRD sec.4.7, line-length 120) ----------------------------
+  # Local hook forces PYTHONUTF8=1 to avoid CP932 decode errors on Japanese Windows.
+  - repo: local
+    hooks:
+      - id: yamllint
+        name: yamllint
+        language: python
+        entry: python -X utf8 -m yamllint
+        types: [yaml]
+        additional_dependencies: [yamllint==1.35.1]

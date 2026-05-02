@@ -1,0 +1,16 @@
+{
+  "meili": {
+    "default": {
+      "search_radius": 50,
+      "gps_accuracy": 10,
+      "interpolation_distance": 10,
+      "sigma_z": 4.07,
+      "beta": 3,
+      "max_route_distance_factor": 5,
+      "max_route_time_factor": 5
+    },
+    "auto": {
+      "turn_penalty_factor": 10
+    }
+  }
+}

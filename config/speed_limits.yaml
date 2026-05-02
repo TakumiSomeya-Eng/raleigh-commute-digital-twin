@@ -1,4 +1,4 @@
-# FR-9.2 — Hand-coded speed limits for known Raleigh corridors.
+# FR-9.2 -- Hand-coded speed limits for known Raleigh corridors.
 # Used when OSM maxspeed tags are absent.
 # Populated during task T4.2 after running map-matching on day2.
 # Implemented in task T4.2.
