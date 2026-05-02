@@ -178,9 +178,18 @@ your gut feel.
 
 ## Results (day2 — Saint Mary's Street, Raleigh NC, 2026-04-17)
 
-> Screenshot: see [`docs/screenshots/`](docs/screenshots/)
+Full interactive report: [`docs/screenshots/report_day2.html`](docs/screenshots/report_day2.html)
 
-EKF RMSE vs GPS-only RMSE: **< 0.75 ×** (P3 gate ✅)
+| Metric | Value |
+|---|---|
+| Trip duration | ~14.8 min |
+| Distance | ~15.0 km |
+| Aggregate score | **34.8 / 100** |
+| Suggested tip | **10 %** (band 0 – 59) |
+| Harsh-brake events | 17 detected (≥ 3.0 m/s²) |
+| EKF RMSE vs GPS-only | **< 0.75 ×** (P3 gate ✅) |
+
+The low score reflects multiple harsh-brake events visible on the Raleigh commute route.
 
 ---
 
