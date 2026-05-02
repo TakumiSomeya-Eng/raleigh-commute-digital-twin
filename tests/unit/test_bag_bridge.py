@@ -18,7 +18,9 @@ import pandas as pd
 import pytest
 import yaml
 
-from bag_bridge._cdr import (
+bag_bridge = pytest.importorskip("bag_bridge", reason="bag_bridge requires ROS 2 C++ build")
+
+from bag_bridge._cdr import (  # noqa: E402
     _CdrWriter,
     serialize_imu,
     serialize_magnetic_field,
