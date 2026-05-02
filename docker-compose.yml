@@ -42,6 +42,12 @@ services:
       - build_elevation=False
       - build_admins=True
       - build_time_zones=False
+      # Limit tile-build concurrency to avoid OOM segfault on 8 GB RAM hosts.
+      - concurrency=2
+    # Restrict to 2 CPUs so valhalla auto-detects 2 threads for tile build.
+    cpus: 2.0
+    cpuset: "0,1"
+    mem_limit: 4g
     volumes:
       - ./docker/valhalla:/custom_files
     ports:
