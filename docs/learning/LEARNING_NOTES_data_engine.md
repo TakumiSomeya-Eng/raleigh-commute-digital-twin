@@ -1,7 +1,9 @@
 # Learning Notes: `src/data_engine/`
 
 **Project:** Raleigh Commute Digital Twin — *Uber vs. My AI*
+
 **Module:** `src/data_engine/` (Phase P1 — FR-1, FR-2)
+
 **Purpose of this document:** Post-completion study notes written to close the implementation-level understanding gap that emerged from AI-assisted development (Claude Code). This is the first in a planned series covering each module in the project.
 
 ---
