@@ -1,7 +1,9 @@
 # Learning Notes: `src/localization/`
 
 **Project:** Raleigh Commute Digital Twin — *Uber vs. My AI*
+
 **Module:** `src/localization/` (Phase P2 — FR-4, FR-5)
+
 **Purpose of this document:** Post-completion study notes written to close the implementation-level understanding gap that emerged from AI-assisted development (Claude Code). This is the second in a planned series covering each module in the project.
 
 ---
