@@ -1,7 +1,9 @@
 # Learning Notes: `src/evaluation/`
 
 **Project:** Raleigh Commute Digital Twin — *Uber vs. My AI*
+
 **Module:** `src/evaluation/` (Phase P3 — FR-6)
+
 **Purpose of this document:** Post-completion study notes written to close the implementation-level understanding gap that emerged from AI-assisted development (Claude Code). This is the third in a planned series covering each module in the project.
 
 ---
