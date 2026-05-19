@@ -1,7 +1,9 @@
 # Learning Notes: `src/ideal_driver/`
 
 **Project:** Raleigh Commute Digital Twin — *Uber vs. My AI*
+
 **Module:** `src/ideal_driver/` (Phase P4 — FR-9)
+
 **Purpose of this document:** Post-completion study notes written to close the implementation-level understanding gap that emerged from AI-assisted development (Claude Code). This is the fourth in a planned series covering each module in the project.
 
 ---
