@@ -6,7 +6,13 @@ Implemented in task T5.3.
 
 Usage:
     from reporting.map_overlay import generate_map_html
-    html_fragment = generate_map_html(fused_df, ideal_df, score_doc)
+    html_fragment = generate_map_html(fused_df, ideal_df, score_doc,
+                                      lat0=lat0, lon0=lon0, events=events)
+
+ENU -> WGS-84 conversion is delegated to data_engine.projection.enu_to_wgs84
+(flat-earth / equirectangular, 111 132.954 m/deg).  config/data_gen.yaml is
+the single source of truth for the anchor; callers must supply lat0/lon0
+(obtained via data_engine.projection.load_anchor()).
 """
 
 from __future__ import annotations
@@ -15,62 +21,10 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 import pandas as pd
+from data_engine.projection import enu_to_wgs84
 
 if TYPE_CHECKING:
     pass
-
-# Threshold for harsh-brake detection (matches scoring.components logic).
-# Deceleration magnitude below which an event is NOT flagged.
-_HARSH_BRAKE_THRESHOLD_MPS2 = 3.0  # |a_lon| >= this -> harsh brake
-
-# ENU anchor (must match config/data_gen.yaml)
-_LAT0_DEG = 35.773
-_LON0_DEG = -78.610
-_R_EARTH = 6_371_000.0
-
-
-def _enu_to_latlon(px: np.ndarray, py: np.ndarray) -> tuple[list[float], list[float]]:
-    """Convert ENU (m) arrays to lat/lon degrees using the project ENU anchor."""
-    import math
-
-    lat0 = math.radians(_LAT0_DEG)
-    lon0 = math.radians(_LON0_DEG)
-    lats = (py / _R_EARTH + lat0) * (180.0 / math.pi)
-    lons = (px / (_R_EARTH * math.cos(lat0)) + lon0) * (180.0 / math.pi)
-    return lats.tolist(), lons.tolist()
-
-
-def _find_harsh_brake_events(
-    fused: pd.DataFrame,
-    threshold: float = _HARSH_BRAKE_THRESHOLD_MPS2,
-) -> list[dict]:
-    """Return list of harsh-brake events as {t_s, lat, lon, decel_mps2} dicts."""
-    v = fused["v_mps"].to_numpy(dtype=float)
-    t = fused["t_s"].to_numpy(dtype=float)
-    px = fused["px_m"].to_numpy(dtype=float)
-    py = fused["py_m"].to_numpy(dtype=float)
-
-    a_lon = np.gradient(v, t)
-
-    events: list[dict] = []
-    in_event = False
-    for i in range(len(a_lon)):
-        decel = -a_lon[i]
-        if decel >= threshold and not in_event:
-            lats, lons = _enu_to_latlon(np.array([px[i]]), np.array([py[i]]))
-            events.append(
-                {
-                    "t_s": float(t[i]),
-                    "lat": lats[0],
-                    "lon": lons[0],
-                    "decel_mps2": float(decel),
-                }
-            )
-            in_event = True
-        elif decel < threshold:
-            in_event = False
-
-    return events
 
 
 def generate_map_html(
@@ -78,6 +32,9 @@ def generate_map_html(
     ideal: pd.DataFrame | None,
     score_doc: dict,
     *,
+    lat0: float,
+    lon0: float,
+    events: list[dict] | None = None,
     width: str = "100%",
     height: str = "420px",
 ) -> str:
@@ -91,6 +48,11 @@ def generate_map_html(
         Ideal trajectory parquet (columns: t_s, px_m, py_m, ...) or None.
     score_doc:
         Parsed score.json dict (for trip metadata in tooltips).
+    lat0, lon0:
+        ENU anchor from config/data_gen.yaml (via data_engine.projection.load_anchor).
+    events:
+        Harsh-brake event list from scoring.components.harsh_brake_penalty.
+        Each dict must contain: t_s, decel_mps2, lat, lon.
     width, height:
         CSS dimensions for the map ``<div>``.
 
@@ -103,7 +65,7 @@ def generate_map_html(
 
     px = fused["px_m"].to_numpy(dtype=float)
     py = fused["py_m"].to_numpy(dtype=float)
-    actual_lats, actual_lons = _enu_to_latlon(px, py)
+    actual_lats, actual_lons = enu_to_wgs84(px, py, lat0, lon0)
 
     center_lat = float(np.mean(actual_lats))
     center_lon = float(np.mean(actual_lons))
@@ -131,7 +93,7 @@ def generate_map_html(
     if ideal is not None and "px_m" in ideal.columns and "py_m" in ideal.columns:
         ipx = ideal["px_m"].to_numpy(dtype=float)
         ipy = ideal["py_m"].to_numpy(dtype=float)
-        ideal_lats, ideal_lons = _enu_to_latlon(ipx, ipy)
+        ideal_lats, ideal_lons = enu_to_wgs84(ipx, ipy, lat0, lon0)
         step_i = max(1, len(ideal_lats) // 2000)
         ideal_coords = list(zip(ideal_lats[::step_i], ideal_lons[::step_i], strict=False))
         folium.PolyLine(
@@ -143,9 +105,10 @@ def generate_map_html(
             dash_array="6 4",
         ).add_to(m)
 
-    # Harsh-brake markers
-    events = _find_harsh_brake_events(fused)
-    for ev in events:
+    # Harsh-brake markers (supplied by caller; already enriched with lat/lon)
+    for ev in events or []:
+        if "lat" not in ev or "lon" not in ev:
+            continue
         popup_html = (
             f"<b>Harsh brake</b><br>"
             f"t = {ev['t_s']:.1f} s<br>"
@@ -159,7 +122,7 @@ def generate_map_html(
         ).add_to(m)
 
     # Start / end markers
-    if actual_lats:
+    if len(actual_lats) > 0:
         folium.CircleMarker(
             [actual_lats[0], actual_lons[0]],
             radius=7,

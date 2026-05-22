@@ -19,6 +19,10 @@ import pytest
 # Fixtures / helpers
 # ---------------------------------------------------------------------------
 
+_SCORING_YAML = Path(__file__).parents[2] / "config" / "scoring.yaml"
+_MAP_LAT0 = 35.773
+_MAP_LON0 = -78.610
+
 _SCORE_DOC: dict = {
     "trip_id": "day2",
     "config_hash": "sha256:abcdef1234567890",
@@ -151,7 +155,13 @@ class TestMapOverlay:
     def _map(self, ideal: pd.DataFrame | None = None) -> str:
         from reporting.map_overlay import generate_map_html
 
-        return generate_map_html(_make_fused(), ideal, _SCORE_DOC)
+        return generate_map_html(
+            _make_fused(),
+            ideal,
+            _SCORE_DOC,
+            lat0=_MAP_LAT0,
+            lon0=_MAP_LON0,
+        )
 
     def test_returns_html_string(self) -> None:
         html = self._map()
@@ -172,17 +182,33 @@ class TestMapOverlay:
         assert isinstance(html, str)
 
     def test_marker_for_harsh_brake(self) -> None:
-        # Build fused with a hard deceleration event
-        n = 300
-        v = np.full(n, 10.0)
-        # Sharp brake at sample 150: drop 6 m/s in 0.1 s = -60 m/s^2
-        v[150:160] = np.linspace(10.0, 4.0, 10)
+        # 0.5 s decel at 8 m/s^2 (well above 3.5 threshold, survives LPF + min_dur)
+        n = 600
+        v = np.full(n, 10.0, dtype=float)
+        for i in range(200, 250):
+            v[i] = max(0.0, 10.0 - 8.0 * (i - 200) * 0.01)
+        v[250:] = v[249]
         fused = _make_fused(n)
         fused["v_mps"] = v
-        from reporting.map_overlay import generate_map_html
 
-        html = generate_map_html(fused, None, _SCORE_DOC)
-        # Should produce at least one marker popup
+        from data_engine.projection import enu_to_wgs84
+        from reporting.map_overlay import generate_map_html
+        from scoring.components import harsh_brake_penalty
+
+        _, events = harsh_brake_penalty(fused, _SCORING_YAML)
+        enriched = []
+        for ev in events:
+            if "px_m" in ev:
+                lat, lon = enu_to_wgs84(ev["px_m"], ev["py_m"], _MAP_LAT0, _MAP_LON0)
+                enriched.append({**ev, "lat": float(lat), "lon": float(lon)})
+        html = generate_map_html(
+            fused,
+            None,
+            _SCORE_DOC,
+            lat0=_MAP_LAT0,
+            lon0=_MAP_LON0,
+            events=enriched,
+        )
         assert "Harsh brake" in html
 
 

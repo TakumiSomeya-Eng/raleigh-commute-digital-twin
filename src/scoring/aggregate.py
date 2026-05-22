@@ -160,7 +160,7 @@ def build_score_json(
     # Compute all six raw penalties
     raw: dict[str, float] = {
         "jerk": jerk_penalty(fused, ideal, scoring_yaml),
-        "harsh_brake": harsh_brake_penalty(fused, scoring_yaml),
+        "harsh_brake": harsh_brake_penalty(fused, scoring_yaml)[0],
         "lat_accel": lat_accel_penalty(fused, ideal, scoring_yaml),
         "speed": speed_penalty(fused, reference_path, scoring_yaml),
         "deviation": deviation_penalty(fused, reference_path, scoring_yaml),

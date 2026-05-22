@@ -37,6 +37,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import yaml
+from scipy.signal import butter, filtfilt
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -76,6 +77,26 @@ def _a_lat(v: np.ndarray, psi_dot: np.ndarray) -> np.ndarray:
 def _j_lon(t: np.ndarray, a: np.ndarray) -> np.ndarray:
     """Longitudinal jerk = d(a_lon)/dt."""
     return np.gradient(a, t)
+
+
+def _lpf_accel(a: np.ndarray, t: np.ndarray, cutoff_hz: float = 3.0, order: int = 2) -> np.ndarray:
+    """Zero-phase Butterworth low-pass filter for acceleration.
+
+    Suppresses road-vibration spikes (> cutoff_hz) without introducing phase
+    delay.  Falls back to the raw array when the signal is too short to filter.
+    """
+    if len(a) < 2:
+        return a
+    dt_med = float(np.median(np.diff(t))) if len(t) > 1 else 0.01
+    fs = 1.0 / max(dt_med, 1e-9)
+    nyq = 0.5 * fs
+    if cutoff_hz >= nyq:
+        return a
+    lpf_b, lpf_a = butter(order, cutoff_hz / nyq, btype="low")
+    padlen = 3 * max(len(lpf_b), len(lpf_a))
+    if len(a) <= padlen:
+        return a
+    return filtfilt(lpf_b, lpf_a, a)
 
 
 def _interp_ideal(ideal: pd.DataFrame, t_query: np.ndarray, col: str) -> np.ndarray:
@@ -144,46 +165,58 @@ def jerk_penalty(
 def harsh_brake_penalty(
     fused: pd.DataFrame,
     config_path: Path | None = None,
-) -> float:
+) -> tuple[float, list[dict]]:
     """Count harsh braking events; normalise to events per minute.
 
-    An event is a contiguous interval where longitudinal deceleration
-    exceeds the threshold.  Hysteresis via edge-detection (rising/falling
-    transitions in the boolean indicator) prevents double-counting.
+    An event is a contiguous interval where the LPF-smoothed longitudinal
+    deceleration exceeds the threshold.  A 3 Hz Butterworth low-pass filter
+    removes road-vibration spikes before detection.  A 1 s cooldown after
+    each event end prevents double-counting when the signal briefly
+    re-crosses the threshold.
 
     Algorithm
     ---------
-    1. a_lon = dv/dt from fused v_mps.
-    2. is_braking = (a_lon < -threshold)
-    3. Detect state transitions (0→1 = start, 1→0 = end).
-    4. Count events whose duration >= min_duration_s.
-    5. rate_epm = events / (trip_duration_s / 60)
-    6. penalty = clip(rate_epm / harsh_brake_epm_sat, 0, 1)
+    1. a_raw = dv/dt from fused v_mps.
+    2. a     = LPF(a_raw, cutoff=3 Hz, order=2)  -- suppress road vibration.
+    3. is_braking = (a < -threshold)
+    4. Detect state transitions (0→1 = start, 1→0 = end).
+    5. Count events whose duration >= min_duration_s and whose start is
+       >= 1 s after the previous event's end (cooldown).
+    6. rate_epm = events / (trip_duration_s / 60)
+    7. penalty  = clip(rate_epm / harsh_brake_epm_sat, 0, 1)
 
     Parameters
     ----------
     fused:
         Fused filter output.  Required: t_s, v_mps.
+        Optional (for event positions): px_m, py_m.
     config_path:
         Path to scoring.yaml.
 
     Returns
     -------
-    Scalar in [0, 1].
+    (penalty, events) where penalty ∈ [0, 1] and events is a list of dicts
+    with keys t_s, decel_mps2, and (when px_m/py_m are present) px_m, py_m.
     """
     cfg = _load_config(config_path)
     thresh = float(cfg.get("thresholds", {}).get("harsh_brake_decel_mps2", 3.5))
     min_dur = float(cfg.get("thresholds", {}).get("harsh_brake_min_duration_s", 0.3))
     sat_epm = float(cfg.get("saturation", {}).get("harsh_brake_epm", 2.0))
+    cooldown_s: float = 1.0
 
     t = fused["t_s"].to_numpy(dtype=float)
     v = fused["v_mps"].to_numpy(dtype=float)
 
     trip_duration = float(t[-1] - t[0])
     if trip_duration < _MIN_TRIP_DURATION_S:
-        return 0.0
+        return 0.0, []
 
-    a = _a_lon(t, v)
+    has_pos = "px_m" in fused.columns and "py_m" in fused.columns
+    px = fused["px_m"].to_numpy(dtype=float) if has_pos else None
+    py = fused["py_m"].to_numpy(dtype=float) if has_pos else None
+
+    a_raw = _a_lon(t, v)
+    a = _lpf_accel(a_raw, t)
     is_braking = (a < -thresh).astype(np.int8)
 
     # Pad with zeros so edge detection works at boundaries
@@ -193,16 +226,32 @@ def harsh_brake_penalty(
     start_indices = np.where(diff == 1)[0]  # 0-indexed into original t
     end_indices = np.where(diff == -1)[0]  # first index AFTER event
 
-    events = 0
+    event_count = 0
+    event_list: list[dict] = []
+    last_event_end_t = -float("inf")
+
     for s, e in zip(start_indices, end_indices, strict=False):
-        # Duration from t[s] to the last True sample t[e-1]
-        duration = t[min(e, len(t) - 1)] - t[s]
-        if duration >= min_dur:
-            events += 1
+        end_idx = min(e, len(t) - 1)
+        duration = t[end_idx] - t[s]
+        if duration < min_dur:
+            continue
+        if t[s] - last_event_end_t < cooldown_s:
+            continue
+        event_count += 1
+        last_event_end_t = t[end_idx]
+        peak_idx = int(s + np.argmin(a[s : end_idx + 1]))
+        ev: dict = {
+            "t_s": float(t[s]),
+            "decel_mps2": float(-a[peak_idx]),
+        }
+        if px is not None:
+            ev["px_m"] = float(px[s])
+            ev["py_m"] = float(py[s])  # type: ignore[index]
+        event_list.append(ev)
 
     trip_minutes = trip_duration / 60.0
-    rate_epm = float(events) / max(trip_minutes, 1e-9)
-    return float(np.clip(rate_epm / sat_epm, 0.0, 1.0))
+    rate_epm = float(event_count) / max(trip_minutes, 1e-9)
+    return float(np.clip(rate_epm / sat_epm, 0.0, 1.0)), event_list
 
 
 # ---------------------------------------------------------------------------

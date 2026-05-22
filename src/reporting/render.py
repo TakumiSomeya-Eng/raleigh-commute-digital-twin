@@ -22,6 +22,7 @@ from jinja2 import Environment, FileSystemLoader
 
 _TEMPLATES_DIR = Path(__file__).parent / "templates"
 _MAX_REPORT_BYTES = 5 * 1024 * 1024  # 5 MB DoD limit
+_DEFAULT_SCORING_YAML = Path(__file__).parent.parent.parent / "config" / "scoring.yaml"
 
 
 # ---------------------------------------------------------------------------
@@ -113,6 +114,9 @@ def render_report(
     -------
     Path to the written report.html.
     """
+    from data_engine.projection import enu_to_wgs84, load_anchor
+    from scoring.components import harsh_brake_penalty
+
     from reporting.bar_chart import generate_svg
     from reporting.map_overlay import generate_map_html
 
@@ -152,9 +156,28 @@ def render_report(
     _log("generating component bar chart")
     bar_svg = generate_svg(score_doc)
 
+    # -- Compute harsh-brake events (shared source for map and score) --
+    lat0, lon0 = load_anchor()
+    scoring_cfg = Path(config_path) if config_path is not None else _DEFAULT_SCORING_YAML
+    _, brake_events = harsh_brake_penalty(fused, scoring_cfg)
+    enriched_events: list[dict] = []
+    for ev in brake_events:
+        if "px_m" in ev:
+            ev_lat, ev_lon = enu_to_wgs84(ev["px_m"], ev["py_m"], lat0, lon0)
+            enriched_events.append({**ev, "lat": float(ev_lat), "lon": float(ev_lon)})
+        else:
+            enriched_events.append(ev)
+
     # -- Generate Folium map --
     _log("generating map overlay")
-    map_html = generate_map_html(fused, ideal, score_doc)
+    map_html = generate_map_html(
+        fused,
+        ideal,
+        score_doc,
+        lat0=lat0,
+        lon0=lon0,
+        events=enriched_events,
+    )
 
     # -- Render template --
     _log("rendering Jinja2 template")

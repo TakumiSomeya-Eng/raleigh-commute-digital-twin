@@ -185,7 +185,7 @@ class TestHarshBrakePenalty:
     def test_calm_drive_zero_events(self):
         """Constant speed -> no braking events -> penalty = 0."""
         fused = _constant_speed_fused()
-        p = harsh_brake_penalty(fused, config_path=_SCORING_YAML)
+        p, _ = harsh_brake_penalty(fused, config_path=_SCORING_YAML)
         assert p == 0.0, f"calm drive harsh brake penalty nonzero: {p}"
 
     def test_harsh_braking_detected(self):
@@ -203,7 +203,7 @@ class TestHarshBrakePenalty:
             v[i1:] = v[min(i1, n) - 1]
 
         fused = _make_fused(v)
-        p = harsh_brake_penalty(fused, config_path=_SCORING_YAML)
+        p, _ = harsh_brake_penalty(fused, config_path=_SCORING_YAML)
         assert p > 0.5, f"harsh braking penalty too low: {p:.4f}"
 
     def test_no_double_counting(self):
@@ -223,7 +223,7 @@ class TestHarshBrakePenalty:
         with open(_SCORING_YAML, encoding="utf-8") as fh:
             cfg = yaml.safe_load(fh)
         sat_epm = float(cfg.get("saturation", {}).get("harsh_brake_epm", 2.0))
-        p = harsh_brake_penalty(fused, config_path=_SCORING_YAML)
+        p, _ = harsh_brake_penalty(fused, config_path=_SCORING_YAML)
         expected = min(1.0, 1.0 / ((_TRIP_S / 60.0) * sat_epm))
         assert abs(p - expected) < 0.05, f"event count off: p={p:.4f}, expected~{expected:.4f}"
 
@@ -237,7 +237,7 @@ class TestHarshBrakePenalty:
         for i in range(i0, min(i1, n)):
             v[i] = max(0.0, 15.0 - 5.0 * (i - i0) * _DT)
         fused = _make_fused(v)
-        p = harsh_brake_penalty(fused, config_path=_SCORING_YAML)
+        p, _ = harsh_brake_penalty(fused, config_path=_SCORING_YAML)
         assert p == 0.0, f"sub-threshold event counted: {p:.4f}"
 
     def test_penalty_clipped_at_one(self):
@@ -254,12 +254,12 @@ class TestHarshBrakePenalty:
             if i1 < n:
                 v[i1:] = 15.0
         fused = _make_fused(v)
-        p = harsh_brake_penalty(fused, config_path=_SCORING_YAML)
+        p, _ = harsh_brake_penalty(fused, config_path=_SCORING_YAML)
         assert p <= 1.0
 
     def test_degenerate_trip_returns_zero(self):
         fused = _make_fused(np.full(5, 10.0), dt=0.1)
-        p = harsh_brake_penalty(fused, config_path=_SCORING_YAML)
+        p, _ = harsh_brake_penalty(fused, config_path=_SCORING_YAML)
         assert p == 0.0
 
 
