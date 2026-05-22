@@ -186,7 +186,7 @@ Full interactive report: [`docs/screenshots/report_day2.html`](docs/screenshots/
 | Distance | ~15.0 km |
 | Aggregate score | **34.8 / 100** |
 | Suggested tip | **10 %** (band 0 – 59) |
-| Harsh-brake events | 17 detected (≥ 3.0 m/s²) |
+| Harsh-brake events | detected (≥ 3.5 m/s², LPF-smoothed) |
 | EKF RMSE vs GPS-only | **< 0.75 ×** (P3 gate ✅) |
 
 The low score reflects multiple harsh-brake events visible on the Raleigh commute route.

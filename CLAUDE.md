@@ -11,7 +11,7 @@ Sensor Logger（iPhone）で記録したUber乗車データをEKF/UKFで融合�
 
 - **ドキュメント**: `Docs/PRD.md` / `Docs/FRD.md` / `Docs/TRD.md` / `Docs/DEV_PLAN.md`
 - **37タスク / 6フェーズ**: P0（基盤）→ P1（データ）→ P2（融合）→ P3（評価）→ P4（理想）→ P5（レポート）
-- **現在地**: P2完了（T2.1〜T2.8完了・EKF/UKF day2 Parquet生成確認済み）（2026-04-26時点）
+- **現在地**: P5完了（全37タスク完了・T5.3 harsh-brake LPF/統一リファクタ済み）（2026-05-22時点）
 
 ---
 
