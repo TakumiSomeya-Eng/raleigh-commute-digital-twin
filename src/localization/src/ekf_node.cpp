@@ -88,6 +88,7 @@ class EkfNode : public rclcpp::Node {
     declare_parameter<double>("outlier_gate.chi2_confidence", 0.99);
     declare_parameter<std::string>("initialization.method", "first_gps");
     declare_parameter<int>("initialization.wait_gps_count", 3);
+    declare_parameter<double>("measurement_noise.sigma_bearing_rad", 0.35);
   }
 
   void load_params() {
@@ -96,13 +97,14 @@ class EkfNode : public rclcpp::Node {
     bearing_min_speed_ = get_parameter("measurement_noise.bearing_min_speed_mps").as_double();
     chi2_confidence_ = get_parameter("outlier_gate.chi2_confidence").as_double();
     wait_gps_count_ = static_cast<int>(get_parameter("initialization.wait_gps_count").as_int());
+    sigma_bearing_ = get_parameter("measurement_noise.sigma_bearing_rad").as_double();
   }
 
   void log_params() {
     RCLCPP_INFO(get_logger(), "[FR-4.2 ekf] sigma_a=%.3f  sigma_psi_dot=%.3f", sigma_a_,
                 sigma_psi_dot_);
-    RCLCPP_INFO(get_logger(), "[FR-4.2 ekf] chi2=%.2f  init=first_gps  wait_gps=%d",
-                chi2_confidence_, wait_gps_count_);
+    RCLCPP_INFO(get_logger(), "[FR-4.2 ekf] sigma_bearing=%.3f  chi2=%.2f  wait_gps=%d",
+                sigma_bearing_, chi2_confidence_, wait_gps_count_);
   }
 
   // ---- subscriptions -------------------------------------------------------
@@ -124,6 +126,10 @@ class EkfNode : public rclcpp::Node {
 
     spd_sub_ = create_subscription<std_msgs::msg::Float64>(
         "/gps/speed", sensor_qos, [this](std_msgs::msg::Float64::SharedPtr msg) { on_speed(msg); });
+
+    brg_sub_ = create_subscription<std_msgs::msg::Float64>(
+        "/gps/bearing", sensor_qos,
+        [this](std_msgs::msg::Float64::SharedPtr msg) { on_bearing(msg); });
   }
 
   // ---- publishers and timers -----------------------------------------------
@@ -276,6 +282,32 @@ class EkfNode : public rclcpp::Node {
     x_[kPsi] = std::remainder(x_[kPsi], 2.0 * M_PI);
   }
 
+  // ---- GPS bearing callback -----------------------------------------------
+
+  void on_bearing(std_msgs::msg::Float64::SharedPtr msg) {
+    if (!initialized_) return;
+
+    const double z_brg = msg->data;
+    const double innov_brg = std::remainder(z_brg - x_[kPsi], 2.0 * M_PI);
+
+    Eigen::Matrix<double, 1, 5> H_brg = Eigen::Matrix<double, 1, 5>::Zero();
+    H_brg(0, kPsi) = 1.0;
+
+    const double S_brg = (H_brg * P_ * H_brg.transpose())(0, 0) + sigma_bearing_ * sigma_bearing_;
+
+    Eigen::VectorXd innov_v(1);
+    innov_v(0) = innov_brg;
+    Eigen::MatrixXd S_m(1, 1);
+    S_m(0, 0) = S_brg;
+
+    if (!passes_gate(innov_v, S_m, chi2_confidence_)) return;
+
+    const Vec5 K_brg = P_ * H_brg.transpose() / S_brg;
+    x_ += K_brg * innov_brg;
+    P_ = (Mat5::Identity() - K_brg * H_brg) * P_;
+    x_[kPsi] = std::remainder(x_[kPsi], 2.0 * M_PI);
+  }
+
   // ---- MagneticField callback (unused at T2.5) ----------------------------
 
   void on_mag(sensor_msgs::msg::MagneticField::SharedPtr msg) {
@@ -401,6 +433,7 @@ class EkfNode : public rclcpp::Node {
   double sigma_a_{1.0};
   double sigma_psi_dot_{0.1};
   double bearing_min_speed_{2.0};
+  double sigma_bearing_{0.35};
   double chi2_confidence_{0.99};
   int wait_gps_count_{3};
 
@@ -424,6 +457,7 @@ class EkfNode : public rclcpp::Node {
   rclcpp::Subscription<sensor_msgs::msg::Imu>::SharedPtr imu_sub_;
   rclcpp::Subscription<sensor_msgs::msg::MagneticField>::SharedPtr mag_sub_;
   rclcpp::Subscription<std_msgs::msg::Float64>::SharedPtr spd_sub_;
+  rclcpp::Subscription<std_msgs::msg::Float64>::SharedPtr brg_sub_;
   rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr odom_pub_;
   rclcpp::Publisher<diagnostic_msgs::msg::DiagnosticArray>::SharedPtr diag_pub_;
   rclcpp::TimerBase::SharedPtr diag_timer_;

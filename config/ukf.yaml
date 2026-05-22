@@ -18,6 +18,7 @@
     measurement_noise:
       bearing_min_speed_mps: 2.0
       mag_only_fallback_speed_mps: 1.0
+      sigma_bearing_rad: 0.35
 
     outlier_gate:
       chi2_confidence: 0.99

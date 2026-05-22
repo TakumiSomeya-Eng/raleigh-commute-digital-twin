@@ -16,6 +16,8 @@
       bearing_min_speed_mps: 2.0
       # Below this speed, use magnetometer for heading prior instead of GPS bearing.
       mag_only_fallback_speed_mps: 1.0
+      # 1-sigma bearing measurement noise (rad).  ~20 deg; matches parquet_to_mcap gate.
+      sigma_bearing_rad: 0.35
 
     outlier_gate:
       # Chi-squared confidence level for Mahalanobis innovation gate.

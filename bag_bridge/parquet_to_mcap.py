@@ -1,10 +1,12 @@
 """FR-3.1, FR-3.2 — Convert aligned_100hz.parquet to a ROS 2 MCAP bag.
 
-Publishes four topics:
-  /gps/fix    sensor_msgs/msg/NavSatFix    ~1 Hz  (gps_interpolated == False rows only)
-  /gps/speed  std_msgs/msg/Float64         ~1 Hz  (GPS speed in m/s, same rows as /gps/fix)
-  /imu/data   sensor_msgs/msg/Imu          100 Hz (every row)
-  /mag        sensor_msgs/msg/MagneticField  50 Hz (every 2nd row)
+Publishes five topics:
+  /gps/fix     sensor_msgs/msg/NavSatFix    ~1 Hz  (gps_interpolated == False rows only)
+  /gps/speed   std_msgs/msg/Float64         ~1 Hz  (GPS speed in m/s, same rows as /gps/fix)
+  /gps/bearing std_msgs/msg/Float64         ~1 Hz  (EKF-convention psi_rad; only when
+                                                     speed >= 2 m/s and accuracy < 45 deg)
+  /imu/data    sensor_msgs/msg/Imu          100 Hz (every row)
+  /mag         sensor_msgs/msg/MagneticField  50 Hz (every 2nd row)
 
 Emits a sidecar trip.metadata.yaml with SHA-256 checksum and message counts.
 
@@ -23,6 +25,7 @@ import argparse
 import datetime
 import hashlib
 import logging
+import math
 import sys
 from pathlib import Path
 from typing import Any
@@ -54,6 +57,10 @@ _ALTITUDE_VAR_M2: float = 9.0
 _FRAME_GPS = "gps"
 _FRAME_IMU = "imu"
 _FRAME_MAG = "mag"
+
+# Bearing is only published when both conditions are met; too noisy otherwise.
+_BEARING_MAX_ACCURACY_DEG: float = 45.0
+_BEARING_MIN_SPEED_MPS: float = 2.0
 
 
 # ---------------------------------------------------------------------------
@@ -119,6 +126,7 @@ def convert(
     n_imu = 0
     n_mag = 0
     n_spd = 0
+    n_brg = 0
 
     with open(mcap_path, "wb") as raw:
         writer = Writer(raw)
@@ -164,6 +172,11 @@ def convert(
         )
         spd_ch_id = writer.register_channel(
             topic="/gps/speed",
+            message_encoding="cdr",
+            schema_id=spd_schema_id,
+        )
+        brg_ch_id = writer.register_channel(
+            topic="/gps/bearing",
             message_encoding="cdr",
             schema_id=spd_schema_id,
         )
@@ -225,6 +238,21 @@ def convert(
                 )
                 n_spd += 1
 
+                # /gps/bearing — EKF-convention psi_rad; gated by speed and accuracy
+                if (
+                    float(row.gps_speed_mps) >= _BEARING_MIN_SPEED_MPS
+                    and float(row.bearing_accuracy_deg) < _BEARING_MAX_ACCURACY_DEG
+                ):
+                    brg_rad = math.radians(float(row.gps_bearing_deg))
+                    psi_rad = math.atan2(math.cos(brg_rad), math.sin(brg_rad))
+                    writer.add_message(
+                        channel_id=brg_ch_id,
+                        log_time=time_ns,
+                        data=serialize_float64_msg(psi_rad),
+                        publish_time=time_ns,
+                    )
+                    n_brg += 1
+
             # /mag — every 2nd row (50 Hz)
             if idx % 2 == 0:
                 mag_data = serialize_magnetic_field(
@@ -265,6 +293,7 @@ def convert(
         "duration_s": round(duration_s, 3),
         "n_gps": n_gps,
         "n_spd": n_spd,
+        "n_brg": n_brg,
         "n_imu": n_imu,
         "n_mag": n_mag,
         "generated_at_utc": datetime.datetime.now(datetime.timezone.utc).isoformat(),
@@ -276,7 +305,7 @@ def convert(
     _ts2 = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     sys.stdout.write(
         f"[{_ts2}] [FR-3.1 bag] INFO  wrote {mcap_path}"
-        f"  gps={n_gps}  spd={n_spd}  imu={n_imu}  mag={n_mag}\n"
+        f"  gps={n_gps}  spd={n_spd}  brg={n_brg}  imu={n_imu}  mag={n_mag}\n"
     )
     sys.stdout.write(f"[{_ts2}] [FR-3.2 bag] INFO  metadata → {meta_path}\n")
 
