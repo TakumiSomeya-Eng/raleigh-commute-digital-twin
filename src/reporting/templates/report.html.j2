@@ -4,154 +4,175 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Trip Report &mdash; {{ trip_id }}</title>
+<title>Trip report &mdash; {{ trip_id }}</title>
 <style>
-  /* Reset & base */
+  /* ---- Tokens ---- */
+  :root {
+    --bg:       #f9f8f6;
+    --text:     #1a1a1a;
+    --accent:   #006450;
+    --muted:    #888;
+    --border:   #e0ddd8;
+    --gutter:   clamp(1.5rem, 4vw, 3rem);
+    --max-w:    900px;
+    --f-body:   system-ui, "Helvetica Neue", Arial, sans-serif;
+    --f-head:   Georgia, "Times New Roman", serif;
+    --f-mono:   "Courier New", Courier, monospace;
+  }
+
+  /* ---- Reset ---- */
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
   body {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    background: #1e1e2e;
-    color: #cdd6f4;
-    min-height: 100vh;
-    padding: 0 0 40px 0;
-  }
-  a { color: #89b4fa; }
-
-  /* Header banner */
-  .header {
-    background: linear-gradient(135deg, #181825 0%, #313244 100%);
-    border-bottom: 2px solid #585b70;
-    padding: 24px 32px 20px;
-  }
-  .header h1 {
-    font-size: 1.6rem;
-    font-weight: 700;
-    color: #cdd6f4;
-    letter-spacing: 0.02em;
-  }
-  .header .subtitle {
-    font-size: 0.85rem;
-    color: #6c7086;
-    margin-top: 4px;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--f-body);
+    font-size: 15px;
+    line-height: 1.7;
+    font-weight: 400;
+    padding-bottom: 6rem;
   }
 
-  /* Score hero */
-  .score-hero {
-    display: flex;
-    align-items: center;
-    gap: 32px;
-    background: #181825;
-    border: 1px solid #45475a;
-    border-radius: 12px;
-    padding: 20px 28px;
-    margin: 24px 32px 0;
-    flex-wrap: wrap;
+  a { color: var(--accent); }
+
+  /* ---- Layout wrapper ---- */
+  .wrap {
+    max-width: var(--max-w);
+    margin: 0 auto;
+    padding: 0 var(--gutter);
   }
-  .score-big {
-    font-size: 3.8rem;
-    font-weight: 800;
-    line-height: 1;
-    color: {{ score_color }};
+
+  /* ---- Masthead ---- */
+  .masthead {
+    padding: 2.5rem 0 1.75rem;
+    border-bottom: 1px solid var(--border);
   }
-  .score-label {
-    font-size: 0.75rem;
-    color: #6c7086;
+  .masthead__kicker {
+    font-size: 11px;
+    font-weight: 500;
     text-transform: uppercase;
-    letter-spacing: 0.08em;
+    letter-spacing: 0.12em;
+    color: var(--muted);
+    margin-bottom: 0.4rem;
   }
-  .tip-box {
-    background: #313244;
-    border-radius: 8px;
-    padding: 12px 20px;
-    text-align: center;
-    min-width: 130px;
+  .masthead__title {
+    font-family: var(--f-head);
+    font-size: clamp(1.6rem, 3vw, 2.2rem);
+    font-weight: 400;
+    color: var(--text);
+    letter-spacing: -0.01em;
   }
-  .tip-pct {
-    font-size: 2.2rem;
-    font-weight: 700;
-    color: #a6e3a1;
-  }
-  .tip-band {
-    font-size: 0.8rem;
-    color: #6c7086;
-    margin-top: 2px;
-  }
-  .disclaimer {
-    font-size: 0.72rem;
-    color: #f38ba8;
-    background: #3d1a1a;
-    border: 1px solid #f38ba840;
-    border-radius: 6px;
-    padding: 6px 12px;
-    max-width: 320px;
-    line-height: 1.4;
+  .masthead__meta {
+    margin-top: 0.5rem;
+    font-size: 12px;
+    color: var(--muted);
+    font-family: var(--f-mono);
   }
 
-  /* Trip stats strip */
-  .stats-strip {
-    display: flex;
-    gap: 12px;
-    margin: 16px 32px 0;
-    flex-wrap: wrap;
-  }
-  .stat-card {
-    background: #181825;
-    border: 1px solid #45475a;
-    border-radius: 8px;
-    padding: 10px 18px;
-    min-width: 110px;
-  }
-  .stat-val {
-    font-size: 1.3rem;
-    font-weight: 700;
-    color: #89dceb;
-  }
-  .stat-key {
-    font-size: 0.72rem;
-    color: #6c7086;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    margin-top: 2px;
-  }
-
-  /* Section wrappers */
+  /* ---- Section ---- */
   .section {
-    margin: 24px 32px 0;
+    padding: 3rem 0;
+    border-bottom: 1px solid var(--border);
   }
-  .section-title {
-    font-size: 0.9rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    color: #a6adc8;
-    margin-bottom: 12px;
-    padding-bottom: 6px;
-    border-bottom: 1px solid #313244;
-  }
-  .section-body {
-    background: #181825;
-    border: 1px solid #313244;
-    border-radius: 10px;
-    padding: 16px 20px;
-    overflow-x: auto;
+  .section:last-of-type { border-bottom: none; }
+
+  .section__title {
+    font-family: var(--f-head);
+    font-size: 1.1rem;
+    font-weight: 400;
+    color: var(--text);
+    margin-bottom: 1.75rem;
+    padding-left: 0.75rem;
+    border-left: 3px solid var(--accent);
   }
 
-  /* Map container -- override Folium's padding-bottom:60% trick with a
-     fixed 460px height so content below the map is not pushed off-screen. */
-  .map-wrap {
-    border-radius: 10px;
-    overflow: hidden;
-    border: 1px solid #313244;
-    height: 460px;
+  /* ---- Score & tip (two-column) ---- */
+  .score-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 3rem;
+    align-items: start;
   }
-  /* Force Folium's generated wrapper divs to fill the container */
+  @media (max-width: 560px) {
+    .score-row { grid-template-columns: 1fr; gap: 2rem; }
+  }
+
+  .metric-label {
+    font-size: 11px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--muted);
+    margin-bottom: 0.3rem;
+  }
+  .metric-value {
+    font-family: var(--f-head);
+    font-size: clamp(2.4rem, 5vw, 3rem);
+    font-weight: 500;
+    line-height: 1;
+  }
+  .metric-sub {
+    font-size: 13px;
+    color: var(--muted);
+    margin-top: 0.4rem;
+  }
+
+  .callout {
+    margin-top: 1.5rem;
+    border-left: 3px solid var(--border);
+    padding-left: 1rem;
+  }
+  .callout--warn { border-left-color: #b06000; }
+  .callout p {
+    font-size: 13px;
+    color: #555;
+    line-height: 1.6;
+  }
+
+  /* ---- Trip stats grid ---- */
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 1.5rem 2.5rem;
+  }
+  .stat__label {
+    font-size: 11px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--muted);
+    margin-bottom: 0.2rem;
+  }
+  .stat__value {
+    font-family: var(--f-head);
+    font-size: 1.7rem;
+    font-weight: 500;
+    color: var(--text);
+    line-height: 1.15;
+  }
+  .stat__unit {
+    font-size: 1rem;
+    font-weight: 400;
+    color: var(--muted);
+  }
+
+  /* ---- Bar chart ---- */
+  .chart-wrap { overflow-x: auto; }
+
+  /* ---- Map ---- */
+  /* Fixed 480px height so content below is not pushed off-screen. */
+  .map-wrap {
+    height: 480px;
+    border: 1px solid var(--border);
+    overflow: hidden;
+    position: relative;
+  }
   .map-wrap > div,
   .map-wrap > div > div {
     width: 100% !important;
-    height: 460px !important;
+    height: 480px !important;
     padding-bottom: 0 !important;
     position: relative !important;
-    border-radius: 10px !important;
   }
   .map-wrap iframe {
     position: absolute !important;
@@ -159,156 +180,208 @@
     height: 100% !important;
     left: 0 !important;
     top: 0 !important;
-    border-radius: 10px !important;
   }
   .map-legend {
     display: flex;
-    gap: 20px;
-    margin-top: 8px;
-    font-size: 0.8rem;
-    color: #a6adc8;
     flex-wrap: wrap;
+    gap: 1.5rem;
+    margin-top: 0.75rem;
+    font-size: 12px;
+    color: var(--muted);
+    align-items: center;
   }
-  .legend-dot {
+  .legend-swatch {
     display: inline-block;
-    width: 12px; height: 4px;
-    border-radius: 2px;
+    width: 22px;
+    height: 3px;
     vertical-align: middle;
     margin-right: 5px;
   }
 
-  /* Footer */
-  .footer {
-    margin: 32px 32px 0;
-    font-size: 0.72rem;
-    color: #45475a;
-    border-top: 1px solid #313244;
-    padding-top: 12px;
+  /* ---- Score detail table ---- */
+  .score-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+  }
+  .score-table thead th {
+    font-size: 11px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--muted);
+    text-align: left;
+    padding: 0 0 0.6rem 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .score-table thead th:not(:first-child) { text-align: right; }
+  .score-table tbody td {
+    padding: 0.6rem 0;
+    border-bottom: 1px solid var(--border);
+    vertical-align: middle;
+  }
+  .score-table tbody td:not(:first-child) {
+    text-align: right;
+    font-family: var(--f-mono);
+    font-size: 13px;
+  }
+  .score-table tfoot td {
+    padding: 0.9rem 0 0;
+    font-weight: 500;
+  }
+  .score-table tfoot td:not(:first-child) {
+    text-align: right;
+    font-family: var(--f-mono);
+    font-size: 13px;
+    font-weight: 500;
+  }
+
+  /* ---- Footer ---- */
+  .page-footer {
+    padding: 2rem 0 0;
+    font-size: 12px;
+    color: var(--muted);
+    font-family: var(--f-mono);
+    border-top: 1px solid var(--border);
+  }
+
+  /* ---- Print ---- */
+  @media print {
+    body { background: #fff; font-size: 12px; }
+    .section { break-inside: avoid; }
+    .map-wrap { height: 380px; }
   }
 </style>
 </head>
 <body>
+<div class="wrap">
 
-<!-- ===================== HEADER ===================== -->
-<div class="header">
-  <h1>&#128661; Trip Report &mdash; {{ trip_id }}</h1>
-  <div class="subtitle">
-    Scored {{ timestamp_str }} &nbsp;&middot;&nbsp;
-    Filter: {{ fused_source | upper }} &nbsp;&middot;&nbsp;
-    Config: <code>{{ config_hash_short }}&hellip;</code>
-  </div>
-</div>
+  <!-- Masthead -->
+  <header class="masthead">
+    <div class="masthead__kicker">Raleigh Commute Digital Twin</div>
+    <h1 class="masthead__title">Trip report &mdash; {{ trip_id }}</h1>
+    <div class="masthead__meta">
+      Scored {{ timestamp_str }} &nbsp;&middot;&nbsp;
+      Filter: {{ fused_source | upper }} &nbsp;&middot;&nbsp;
+      Config: {{ config_hash_short }}&hellip;
+    </div>
+  </header>
 
-<!-- ===================== SCORE HERO ===================== -->
-<div class="score-hero">
-  <div>
-    <div class="score-label">Aggregate Score</div>
-    <div class="score-big">{{ "%.1f"|format(score_0_100) }}</div>
-    <div style="font-size:0.8rem; color:#6c7086; margin-top:4px;">out of 100</div>
-  </div>
+  <!-- Score & tip -->
+  <section class="section">
+    <div class="score-row">
+      <div>
+        <div class="metric-label">Aggregate score</div>
+        <div class="metric-value" style="color: {{ score_color }};">{{ "%.1f"|format(score_0_100) }}</div>
+        <div class="metric-sub">out of 100</div>
+      </div>
+      <div>
+        <div>
+          <div class="metric-label">Suggested tip</div>
+          <div class="metric-value" style="color: var(--text);">{{ suggested_tip_pct }}%</div>
+          <div class="metric-sub">Band {{ suggested_tip_band }}</div>
+        </div>
+        {% if notes %}
+        <div class="callout callout--warn">
+          <p>{{ notes }}</p>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </section>
 
-  <div class="tip-box">
-    <div style="font-size:0.75rem; color:#6c7086; margin-bottom:4px;">Suggested tip</div>
-    <div class="tip-pct">{{ suggested_tip_pct }}%</div>
-    <div class="tip-band">Band {{ suggested_tip_band }}</div>
-  </div>
+  <!-- Trip overview -->
+  <section class="section">
+    <h2 class="section__title">Trip overview</h2>
+    <div class="stats-grid">
+      <div>
+        <div class="stat__label">Duration</div>
+        <div class="stat__value">{{ meta.duration_str }}</div>
+      </div>
+      <div>
+        <div class="stat__label">Distance</div>
+        <div class="stat__value">{{ "%.1f"|format(meta.distance_km) }}<span class="stat__unit"> km</span></div>
+      </div>
+      <div>
+        <div class="stat__label">Max speed</div>
+        <div class="stat__value">{{ "%.0f"|format(meta.max_speed_kph) }}<span class="stat__unit"> km/h</span></div>
+      </div>
+      <div>
+        <div class="stat__label">Max speed</div>
+        <div class="stat__value">{{ "%.0f"|format(meta.max_speed_mph) }}<span class="stat__unit"> mph</span></div>
+      </div>
+    </div>
+  </section>
 
-  <div class="disclaimer">
-    &#9888;&nbsp;<strong>{{ notes }}</strong>
-  </div>
-</div>
+  <!-- Component breakdown -->
+  <section class="section">
+    <h2 class="section__title">Component breakdown</h2>
+    <div class="chart-wrap">
+      {{ bar_svg | safe }}
+    </div>
+  </section>
 
-<!-- ===================== TRIP STATS ===================== -->
-<div class="stats-strip">
-  <div class="stat-card">
-    <div class="stat-val">{{ meta.duration_str }}</div>
-    <div class="stat-key">Duration</div>
-  </div>
-  <div class="stat-card">
-    <div class="stat-val">{{ "%.1f"|format(meta.distance_km) }} km</div>
-    <div class="stat-key">Distance</div>
-  </div>
-  <div class="stat-card">
-    <div class="stat-val">{{ "%.0f"|format(meta.max_speed_kph) }} km/h</div>
-    <div class="stat-key">Max speed</div>
-  </div>
-  <div class="stat-card">
-    <div class="stat-val">{{ "%.0f"|format(meta.max_speed_mph) }} mph</div>
-    <div class="stat-key">Max speed</div>
-  </div>
-</div>
+  <!-- Route map -->
+  <section class="section">
+    <h2 class="section__title">Route map</h2>
+    <div class="map-wrap">
+      {{ map_html | safe }}
+    </div>
+    <div class="map-legend">
+      <span><span class="legend-swatch" style="background: #cc3333;"></span>Actual trajectory</span>
+      <span><span class="legend-swatch" style="background: #006450; background: repeating-linear-gradient(90deg, #006450 0, #006450 4px, transparent 4px, transparent 7px);"></span>Ideal trajectory</span>
+      <span>&#9679; Start &nbsp; &#9679; End &nbsp; &#9651; Harsh brake</span>
+    </div>
+  </section>
 
-<!-- ===================== COMPONENT BREAKDOWN ===================== -->
-<div class="section">
-  <div class="section-title">&#128200; Component Breakdown</div>
-  <div class="section-body">
-    {{ bar_svg | safe }}
-  </div>
-</div>
-
-<!-- ===================== MAP OVERLAY ===================== -->
-<div class="section">
-  <div class="section-title">&#128506; Route Map</div>
-  <div class="map-wrap">
-    {{ map_html | safe }}
-  </div>
-  <div class="map-legend">
-    <span><span class="legend-dot" style="background:#e64553;"></span>Actual trajectory</span>
-    <span><span class="legend-dot" style="background:#40a02b; border-top: 2px dashed #40a02b;"></span>Ideal trajectory</span>
-    <span>&#128308; Start &nbsp; &#128309; End &nbsp; &#9888; Harsh brake</span>
-  </div>
-</div>
-
-<!-- ===================== SCORE DETAIL TABLE ===================== -->
-<div class="section">
-  <div class="section-title">&#128203; Score Detail</div>
-  <div class="section-body">
-    <table style="width:100%; border-collapse:collapse; font-size:0.85rem;">
+  <!-- Score detail -->
+  <section class="section">
+    <h2 class="section__title">Score detail</h2>
+    <table class="score-table">
       <thead>
-        <tr style="color:#6c7086; font-size:0.75rem; text-transform:uppercase;">
-          <th style="text-align:left; padding:6px 8px;">Component</th>
-          <th style="text-align:right; padding:6px 8px;">Raw penalty</th>
-          <th style="text-align:right; padding:6px 8px;">Weight</th>
-          <th style="text-align:right; padding:6px 8px;">Weighted</th>
+        <tr>
+          <th>Component</th>
+          <th>Raw penalty</th>
+          <th>Weight</th>
+          <th>Weighted</th>
         </tr>
       </thead>
       <tbody>
         {% set label_map = {
-          "jerk": "Jerk",
+          "jerk":        "Jerk",
           "harsh_brake": "Harsh braking",
-          "lat_accel": "Lateral accel",
-          "speed": "Speed compliance",
-          "deviation": "Route deviation",
+          "lat_accel":   "Lateral acceleration",
+          "speed":       "Speed compliance",
+          "deviation":   "Route deviation",
           "lane_change": "Lane changes"
         } %}
         {% for name, comp in score_doc.components.items() %}
-        <tr style="border-top: 1px solid #313244;">
-          <td style="padding:6px 8px; color:#cdd6f4;">{{ label_map.get(name, name) }}</td>
-          <td style="text-align:right; padding:6px 8px; font-family:monospace;">{{ "%.4f"|format(comp.raw) }}</td>
-          <td style="text-align:right; padding:6px 8px; font-family:monospace; color:#6c7086;">{{ "%.2f"|format(comp.weight) }}</td>
-          <td style="text-align:right; padding:6px 8px; font-family:monospace;">{{ "%.4f"|format(comp.weighted) }}</td>
+        <tr>
+          <td>{{ label_map.get(name, name) }}</td>
+          <td>{{ "%.4f"|format(comp.raw) }}</td>
+          <td style="color: var(--muted);">{{ "%.2f"|format(comp.weight) }}</td>
+          <td>{{ "%.4f"|format(comp.weighted) }}</td>
         </tr>
         {% endfor %}
-        <tr style="border-top: 2px solid #585b70; font-weight:700;">
-          <td style="padding:8px 8px; color:#cdd6f4;">Aggregate</td>
-          <td style="text-align:right; padding:8px 8px; font-family:monospace;">{{ "%.4f"|format(aggregate_raw) }}</td>
-          <td style="text-align:right; padding:8px 8px; font-family:monospace; color:#6c7086;">1.00</td>
-          <td style="text-align:right; padding:8px 8px; font-family:monospace; color:{{ score_color }};">
-            Score: {{ "%.1f"|format(score_0_100) }} / 100
-          </td>
-        </tr>
       </tbody>
+      <tfoot>
+        <tr>
+          <td>Aggregate</td>
+          <td>{{ "%.4f"|format(aggregate_raw) }}</td>
+          <td style="color: var(--muted);">1.00</td>
+          <td style="color: {{ score_color }};">{{ "%.1f"|format(score_0_100) }} / 100</td>
+        </tr>
+      </tfoot>
     </table>
-  </div>
-</div>
+  </section>
 
-<!-- ===================== FOOTER ===================== -->
-<div class="footer">
-  Generated by Raleigh Commute Digital Twin &nbsp;&middot;&nbsp;
-  {{ timestamp_str }} &nbsp;&middot;&nbsp;
-  config sha256: {{ config_hash_short }}&hellip; &nbsp;&middot;&nbsp;
-  <em>{{ notes }}</em>
-</div>
+  <!-- Footer -->
+  <footer class="page-footer">
+    Raleigh Commute Digital Twin &nbsp;&middot;&nbsp;
+    {{ timestamp_str }} &nbsp;&middot;&nbsp;
+    config sha256: {{ config_hash_short }}&hellip;
+  </footer>
 
+</div>
 </body>
 </html>

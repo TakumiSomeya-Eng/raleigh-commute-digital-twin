@@ -168,11 +168,11 @@ def render_report(
     tip_pct = score_doc.get("suggested_tip_pct", 0)
     score_val = score_doc.get("score_0_100", 0.0)
     if score_val >= 80:
-        score_color = "#a6e3a1"  # green
+        score_color = "#006450"
     elif score_val >= 60:
-        score_color = "#f9e2af"  # yellow
+        score_color = "#a05000"
     else:
-        score_color = "#f38ba8"  # red
+        score_color = "#8b1a1a"
 
     context = {
         "score_doc": score_doc,

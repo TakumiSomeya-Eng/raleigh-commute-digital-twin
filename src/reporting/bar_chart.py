@@ -31,16 +31,26 @@ _LEFT_PAD = 10  # left margin
 
 
 def _penalty_color(raw: float) -> str:
-    """Interpolate green (0) -> amber (0.5) -> red (1) for a penalty value."""
+    """Interpolate dark-green (0) -> amber (0.5) -> dark-red (1) for light backgrounds."""
     if raw <= 0.5:
         t = raw / 0.5
-        red = int(t * 255)
-        green = 180 + int((1 - t) * 75)
+        r = int(0x18 + t * (0xB0 - 0x18))
+        g = int(0x79 + t * (0x60 - 0x79))
+        b = int(0x5A * (1 - t))
     else:
         t = (raw - 0.5) / 0.5
-        red = 255
-        green = int((1 - t) * 180)
-    return f"rgb({red},{green},40)"
+        r = int(0xB0 + t * (0x99 - 0xB0))
+        g = int(0x60 * (1 - t))
+        b = int(t * 0x1B)
+    return f"rgb({r},{g},{b})"
+
+
+def _score_color(score: float) -> str:
+    if score >= 80:
+        return "#006450"
+    if score >= 60:
+        return "#a05000"
+    return "#8b1a1a"
 
 
 def generate_svg(score_doc: dict) -> str:
@@ -66,14 +76,15 @@ def generate_svg(score_doc: dict) -> str:
     svg_h = _TOP_PAD + n * (_BAR_H + _BAR_GAP) + score_row_h + 20
 
     parts: list[str] = []
+    score_c = _score_color(score_0_100)
+
     parts.append(
         f'<svg xmlns="http://www.w3.org/2000/svg" width="{_W}" height="{svg_h}" '
         f'role="img" aria-label="Component penalty chart">'
     )
-    parts.append(f'<rect width="{_W}" height="{svg_h}" fill="#1e1e2e" rx="8"/>')
     parts.append(
         f'<text x="{_LEFT_PAD + _LABEL_W + _MAX_BAR_W // 2}" y="18" '
-        f'fill="#cdd6f4" font-size="11" font-family="monospace" '
+        f'fill="#888" font-size="11" font-family="Arial, sans-serif" '
         f'text-anchor="middle">penalty (0 = perfect, 1 = worst)</text>'
     )
 
@@ -90,24 +101,24 @@ def generate_svg(score_doc: dict) -> str:
 
         parts.append(
             f'<text x="{bar_x - 6}" y="{y + _BAR_H // 2 + 4}" '
-            f'fill="#cdd6f4" font-size="12" font-family="sans-serif" '
+            f'fill="#1a1a1a" font-size="12" font-family="Arial, sans-serif" '
             f'text-anchor="end">{label}</text>'
         )
         parts.append(
             f'<rect x="{bar_x}" y="{y}" width="{_MAX_BAR_W}" height="{_BAR_H}" '
-            f'fill="#313244" rx="3"/>'
+            f'fill="#e0ddd8" rx="0"/>'
         )
         if bar_w > 0:
             parts.append(
                 f'<rect x="{bar_x}" y="{y}" width="{bar_w}" height="{_BAR_H}" '
-                f'fill="{color}" rx="3">'
+                f'fill="{color}" rx="0">'
                 f"<title>{label}: raw={raw:.3f}, weighted={weighted:.3f}</title>"
                 f"</rect>"
             )
-        val_x = bar_x + max(bar_w + 4, 4)
+        val_x = bar_x + max(bar_w + 5, 5)
         parts.append(
             f'<text x="{val_x}" y="{y + _BAR_H // 2 + 4}" '
-            f'fill="#a6adc8" font-size="11" font-family="monospace">'
+            f'fill="#888" font-size="11" font-family="Courier New, monospace">'
             f"{raw:.3f}</text>"
         )
 
@@ -117,27 +128,27 @@ def generate_svg(score_doc: dict) -> str:
     parts.append(
         f'<line x1="{bar_x}" y1="{agg_y - 6}" '
         f'x2="{bar_x + _MAX_BAR_W}" y2="{agg_y - 6}" '
-        f'stroke="#585b70" stroke-width="1"/>'
+        f'stroke="#e0ddd8" stroke-width="1"/>'
     )
     parts.append(
         f'<text x="{bar_x - 6}" y="{agg_y + _BAR_H // 2 + 4}" '
-        f'fill="#cdd6f4" font-size="13" font-family="sans-serif" '
-        f'font-weight="bold" text-anchor="end">Score</text>'
+        f'fill="#1a1a1a" font-size="13" font-family="Arial, sans-serif" '
+        f'font-weight="500" text-anchor="end">Score</text>'
     )
     score_bar_w = int((1.0 - aggregate_raw) * _MAX_BAR_W)
-    score_color = _penalty_color(aggregate_raw)
+    agg_bar_color = _penalty_color(aggregate_raw)
     parts.append(
         f'<rect x="{bar_x}" y="{agg_y}" width="{_MAX_BAR_W}" height="{_BAR_H}" '
-        f'fill="#313244" rx="3"/>'
+        f'fill="#e0ddd8" rx="0"/>'
     )
     if score_bar_w > 0:
         parts.append(
             f'<rect x="{bar_x}" y="{agg_y}" width="{score_bar_w}" height="{_BAR_H}" '
-            f'fill="{score_color}" rx="3"/>'
+            f'fill="{agg_bar_color}" rx="0"/>'
         )
     parts.append(
         f'<text x="{bar_x + score_bar_w + 8}" y="{agg_y + _BAR_H // 2 + 4}" '
-        f'fill="#cdd6f4" font-size="14" font-family="monospace" font-weight="bold">'
+        f'fill="{score_c}" font-size="14" font-family="Courier New, monospace" font-weight="500">'
         f"{score_0_100:.1f} / 100</text>"
     )
 
