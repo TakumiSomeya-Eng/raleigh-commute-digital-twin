@@ -184,18 +184,23 @@ Full interactive report: [`docs/screenshots/report_day2.html`](docs/screenshots/
 |---|---|
 | Trip duration | ~14.8 min |
 | Distance | ~15.0 km |
-| Aggregate score | **34.8 / 100** |
-| Suggested tip | **10 %** (band 0 – 59) |
-| Harsh-brake events | detected (≥ 3.5 m/s², LPF-smoothed) |
+| Aggregate score | **69.6 / 100** |
+| Suggested tip | **15 %** (band 60 – 74, "Fair") |
+| Harsh-brake events | 0 (driver braked smoothly throughout) |
 | EKF RMSE vs GPS-only | **< 0.75 ×** (P3 gate ✅) |
 
-The low score reflects multiple harsh-brake events visible on the Raleigh commute route.
+Score improved from an initial 34.0 through a series of root-cause fixes:
+double-LPF on jerk, OSM speed limits, KDTree projection, EKF adaptive gate
+(T3.5), reference-path direction fix (T3.6), and GPS-primary positions with
+road-relative lane-change detection (T3.7).
 
 ### Report preview
 
-![Score and component breakdown](docs/screenshots/report_score.png)
+![Score summary](docs/screenshots/report_score.png)
 
-![Route map with harsh-brake markers](docs/screenshots/report_map.png)
+![Component breakdown](docs/screenshots/report_component_breakdown.png)
+
+![Route map overlay](docs/screenshots/report_map.png)
 
 ![Score detail table](docs/screenshots/report_table.png)
 
