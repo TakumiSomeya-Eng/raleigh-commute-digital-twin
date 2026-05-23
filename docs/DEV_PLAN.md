@@ -492,6 +492,74 @@ Ends with: **PRD S1 pass** — EKF RMSE ≤ 0.75 × GPS-only RMSE on day2.
 
 ---
 
+### T3.5 — EKF GPS position fusion debug & fix
+
+**Background**: After completing P4–P5, `deviation` penalty remains 1.000 (saturated) with a
+nearest-point distance of median 4.5 m, max 46 m from the OSM centerline. This implies that
+GPS position updates are not effectively correcting the EKF despite `on_gps()` containing a
+full 2D position update (lines 167–200 of `ekf_node.cpp`).
+
+- **Covers:** FR-4.2, FR-4.4 (adaptive R), T2.1 correctness
+- **Blockers:** T3.2 (RMSE harness must be in place to measure improvement)
+- **Deliverables:** Root-cause confirmed + fixed; `deviation` raw drops from 1.000 to ≤ 0.30;
+  PRD S1 gate passes.
+- **DoD:**
+  - [ ] Run `ros2 bag info out/day2/trip.mcap` and confirm `/gps/fix` topic exists with expected
+    message count (~880 messages for a 14m 48s trip at ~1 Hz).
+  - [ ] Inspect one NavSatFix message from the bag; confirm `position_covariance[0] > 0`
+    (should equal `horizontal_accuracy_m²`).
+  - [ ] If `position_covariance[0] == 0`: fix `bag_bridge/parquet_to_mcap.py` so it writes
+    `horizontal_accuracy_m ** 2` into `position_covariance` and sets
+    `position_covariance_type = COVARIANCE_TYPE_DIAGONAL_KNOWN (= 2)`. Re-run `make bag`.
+  - [ ] Add R floor in `ekf_node.cpp` `on_gps()` as defensive measure:
+    `if (var_h <= 0.0) var_h = 25.0;` (5 m GPS noise fallback).
+  - [ ] Add initial-covariance floor in `initialize_from_gps()`:
+    `P_(kPx, kPx) = std::max(var_h, 25.0);` to prevent S becoming near-singular on first update.
+  - [ ] Re-run EKF + scoring: `deviation` raw ≤ 0.30, `score_0_100` ≥ 70.
+  - [ ] P3 gate: `make eval TRACE=day2 FILTER=ekf` exits 0 (EKF RMSE ≤ 0.75 × GPS-only RMSE).
+- **Diagnostic commands:**
+
+  ```bash
+  # Step 1: confirm /gps/fix exists and has enough messages
+  ros2 bag info out/day2/trip.mcap
+
+  # Step 2: inspect one NavSatFix to check position_covariance
+  ros2 bag play out/day2/trip.mcap --topics /gps/fix &
+  ros2 topic echo /gps/fix --once
+
+  # Step 3: watch rejection_count and R_pos_trace during EKF run
+  # R_pos_trace = 0 confirms H1 (var_h = 0 bug)
+  ros2 topic echo /fused/diagnostics
+  ```
+
+- **Root cause hypotheses (in priority order):**
+
+  | ID | Hypothesis | Signature | Fix |
+  |---|---|---|---|
+  | H1 | `position_covariance[0] = 0` → R = 0 → gate rejects all early updates | `R_pos_trace = 0` in diagnostics | Fix T2.1 bag bridge; add R floor in `on_gps()` |
+  | H2 | `/gps/fix` topic absent or wrong name in MCAP | Topic missing in `ros2 bag info` | Fix topic name in bag bridge / launch file |
+  | H3 | chi2 gate rejects high-innovation updates after drift | High `rejection_count`, non-zero `R_pos_trace` | Widen gate or add innovation clipping |
+
+- **Expected score impact after fix:**
+
+  | Component | Before | After |
+  |---|---|---|
+  | `deviation` | 1.000 | ≤ 0.30 |
+  | `lane_change` | 1.000 | 0.30–0.70 |
+  | `score_0_100` | 58.3 | **≥ 70** |
+
+- **Claude Code prompt:**
+  > **T3.5 EKF GPS position drift fix.** The EKF `on_gps()` in `src/localization/src/ekf_node.cpp` has a 2D position update (lines 167–200) but `deviation` raw = 1.000 after scoring, with nearest-point distances of median 4.5 m, max 46 m. The most likely cause is `position_covariance[0] = 0` in the NavSatFix messages, making `R = 0` and causing near-singular `S` → chi2 gate rejects all early GPS updates.
+  >
+  > Step 1: Run `ros2 bag info out/day2/trip.mcap` — confirm `/gps/fix` exists.
+  > Step 2: Play the bag and echo one NavSatFix — check `position_covariance[0]`.
+  > Step 3: If zero, fix `bag_bridge/parquet_to_mcap.py` to write `horizontal_accuracy_m ** 2` into `position_covariance[0]` and set `position_covariance_type = 2`.
+  > Step 4: In `ekf_node.cpp` `on_gps()`, add `if (var_h <= 0.0) var_h = 25.0;` after reading `var_h`. In `initialize_from_gps()`, change `P_(kPx, kPx) = var_h` to `P_(kPx, kPx) = std::max(var_h, 25.0)` (same for `kPy`).
+  > Step 5: Rebuild, re-run `make bag && make fuse TRACE=day2 FILTER=ekf && make score TRACE=day2`. Verify `deviation` raw ≤ 0.30 and `score_0_100` ≥ 70.
+- **Est.:** 2h
+
+---
+
 ## 7. Phase P4 — Ideal driver + scoring
 
 Ends with: `make score TRACE=day2` produces a valid `score.json`.

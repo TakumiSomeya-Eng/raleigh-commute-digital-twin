@@ -165,7 +165,7 @@ is close to the ideal profile.
 | P1 | `jerk` | Double-diff of noisy EKF velocity | **FIXED** — double LPF (3 Hz on `a_lon`, 1 Hz on `j_lon`) in `components.py` |
 | P2 | `speed` | OSM speed limit uniform 30 mph fallback | **FIXED** — 59 corridors in `speed_limits.yaml` + KDTree projection; raw 1.0 → 0.759 |
 | P3 | `deviation` / `lane_change` | Arc-length coordinate mismatch | **FIXED** — KDTree nearest-point projection in `speed_penalty()` + `deviation_penalty()` |
-| P4 | `deviation` / `lane_change` | EKF position drift (median 4.5 m, max 46 m from centerline) | **OPEN** — requires GPS position fusion in EKF state update |
+| P4 | `deviation` / `lane_change` | EKF position drift (median 4.5 m, max 46 m from centerline) | **OPEN** — backlogged as **T3.5** in `docs/DEV_PLAN.md` |
 
 ## Remaining Issues
 
@@ -185,6 +185,12 @@ The EKF never corrects its position — the state vector receives speed and head
 GPS but not the `(lat, lon)` position fix itself. Accumulated IMU integration error
 over a 20-minute trip exceeds 46 m.
 
-**Required fix**: add a GPS position measurement update to the EKF so that each ~1 Hz
-GPS fix collapses the position uncertainty. This is a P2-layer (EKF) change; the
-scoring pipeline is correct after the KDTree fix.
+**Root cause candidates** (in priority order):
+
+| ID | Hypothesis | Signature |
+|---|---|---|
+| H1 | `position_covariance[0] = 0` in NavSatFix → R = 0 → chi2 gate rejects all early GPS updates | `R_pos_trace = 0` in `/fused/diagnostics` |
+| H2 | `/gps/fix` topic absent or wrong name in MCAP bag | Topic missing in `ros2 bag info` |
+| H3 | chi2 gate too strict after initial drift | High `rejection_count`, non-zero R |
+
+**Fix**: see **T3.5** in `docs/DEV_PLAN.md` — estimated 2h, expected to bring `score_0_100` ≥ 70.
