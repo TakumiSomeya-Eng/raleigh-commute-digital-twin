@@ -182,12 +182,25 @@ class EkfNode : public rclcpp::Node {
     const double nis = (innov.transpose() * S.inverse() * innov)(0, 0);
     const double time_s = rclcpp::Time(msg->header.stamp).seconds();
 
-    if (!passes_gate(innov, S, chi2_confidence_)) {
+    // Refresh health at GPS rate so the gate decision uses current filter state.
+    diag_.update(time_s);
+
+    // When the filter is degraded or diverged, bypass the chi2 gate so valid GPS
+    // measurements can re-converge the position estimate.  During healthy operation
+    // the gate still rejects genuine multipath outliers.
+    const bool filter_healthy = (diag_.health == DiagnosticsState::kOk);
+    if (filter_healthy && !passes_gate(innov, S, chi2_confidence_)) {
       ++rejection_count_;
       diag_.record_rejected(time_s);
       RCLCPP_DEBUG(get_logger(), "[FR-4.3 gate] GPS rejected  d2=%.1f  total=%d", nis,
                    rejection_count_);
       return;
+    }
+
+    if (!filter_healthy) {
+      RCLCPP_WARN_THROTTLE(get_logger(), *get_clock(), 5000,
+                           "[FR-4.3 gate] GPS gate bypassed — health=%s  d2=%.1f  sqrt_Pxx=%.2f",
+                           diag_.health.c_str(), nis, std::sqrt(P_(kPx, kPx)));
     }
 
     diag_.record_accepted(time_s, nis);

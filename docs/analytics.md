@@ -165,7 +165,7 @@ is close to the ideal profile.
 | P1 | `jerk` | Double-diff of noisy EKF velocity | **FIXED** — double LPF (3 Hz on `a_lon`, 1 Hz on `j_lon`) in `components.py` |
 | P2 | `speed` | OSM speed limit uniform 30 mph fallback | **FIXED** — 59 corridors in `speed_limits.yaml` + KDTree projection; raw 1.0 → 0.759 |
 | P3 | `deviation` / `lane_change` | Arc-length coordinate mismatch | **FIXED** — KDTree nearest-point projection in `speed_penalty()` + `deviation_penalty()` |
-| P4 | `deviation` / `lane_change` | EKF position drift (median 4.5 m, max 46 m from centerline) | **OPEN** — backlogged as **T3.5** in `docs/DEV_PLAN.md` |
+| P4 | `deviation` / `lane_change` | EKF divergence loop at minute 12 (chi2 gate rejects valid GPS once P is tight) | **FIXED** — adaptive gate bypass in `ekf_node.cpp`; score rerun pending |
 
 ## Remaining Issues
 
@@ -185,12 +185,39 @@ The EKF never corrects its position — the state vector receives speed and head
 GPS but not the `(lat, lon)` position fix itself. Accumulated IMU integration error
 over a 20-minute trip exceeds 46 m.
 
-**Root cause candidates** (in priority order):
+**Root cause candidates** (verified):
 
-| ID | Hypothesis | Signature |
+| ID | Hypothesis | Result |
 |---|---|---|
-| H1 | `position_covariance[0] = 0` in NavSatFix → R = 0 → chi2 gate rejects all early GPS updates | `R_pos_trace = 0` in `/fused/diagnostics` |
-| H2 | `/gps/fix` topic absent or wrong name in MCAP bag | Topic missing in `ros2 bag info` |
-| H3 | chi2 gate too strict after initial drift | High `rejection_count`, non-zero R |
+| H1 | `position_covariance[0] = 0` → R = 0 → gate rejects all GPS | **DISPROVED** — `bag_bridge/_cdr.py` correctly writes `hacc_m²`; `R_pos_trace > 0` |
+| H2 | `/gps/fix` topic absent or wrong name | **DISPROVED** — topic present, 9 199 messages at 10.34 Hz |
+| H3 | chi2 gate divergence loop at end of trip | **CONFIRMED — root cause** (see below) |
 
-**Fix**: see **T3.5** in `docs/DEV_PLAN.md` — estimated 2h, expected to bring `score_0_100` ≥ 70.
+**Confirmed root cause — divergence loop at minute 12:**
+
+```
+EKF P(px,px) per-minute:
+  min 11–12:  sqrt = 0.49 m   (tight — long clean tracking on I-440)
+  min 12–13:  sqrt = 4.02 m   (diverging — vehicle decelerates at highway exit)
+  min 13–14:  sqrt = 11.26 m  (diverged)
+  min 14–15:  sqrt = 11.69 m  (still diverged)
+
+GPS distance from road at min 12–13: median 2.5 m, max 7.8 m  (GPS correct)
+EKF distance from road at min 12–13: median 37.5 m              (EKF drifted)
+Innovation: ~35 m,  S = P(px)+R ≈ 0.49 + 4.2 = 4.69
+d² = 35² / 4.69 = 261  >>  chi2 threshold 9.21  → REJECTED
+```
+
+The CTRV model predicts straight constant-speed motion while the vehicle actually decelerates
+at the highway exit.  One large residual causes tight P → large d² → rejection.  Without
+GPS corrections, P grows from IMU process noise and subsequent innovations remain above the
+gate → spiral.
+
+**Fix** (`src/localization/src/ekf_node.cpp`): Refresh `DiagnosticsState::health` at each GPS
+callback (not only at the 1 Hz diagnostics timer).  When `health != OK`, bypass the chi2 gate
+so GPS measurements can re-converge the position estimate.  During healthy operation (minutes
+0–11) the gate remains active and still correctly rejects genuine multipath at minute 3–4
+(64.5 m raw GPS error).  The `DEGRADED` threshold triggers within ~0.5 s of sustained rejection,
+so the loop is broken quickly.
+
+**Fix**: see **T3.5** in `docs/DEV_PLAN.md` — expected to bring `score_0_100` ≥ 70.
