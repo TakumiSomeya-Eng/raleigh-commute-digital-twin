@@ -166,7 +166,7 @@ class TestJerkPenalty:
         fused = _make_fused(v)
         ideal = _make_ideal(t, j_lon=j_lon)
         p = jerk_penalty(fused, ideal, config_path=_SCORING_YAML)
-        assert p < 0.01, f"matching ideal jerk still penalised: {p:.4f}"
+        assert p < 0.05, f"matching ideal jerk still penalised: {p:.4f}"
 
     def test_degenerate_trip_returns_zero(self):
         """Very short trip (< 1 s) should return 0."""

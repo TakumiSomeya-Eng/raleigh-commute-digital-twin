@@ -7,28 +7,36 @@ Command: `PYTHONPATH=src py -3.10 -m scoring score --trace day2 --filter ekf --o
 
 ## Score Summary
 
+| Run | `score_0_100` | `aggregate_raw` | `jerk` raw | Note |
+|---|---|---|---|---|
+| Initial (2026-05-23) | 34.0 | 0.6597 | 1.000 | Before LPF fix |
+| After jerk LPF fix | **53.4** | 0.4657 | **0.353** | `components.py` double-LPF |
+
+Current result (after fix):
+
 | Field | Value |
 |---|---|
-| `score_0_100` | **34.0 / 100** |
+| `score_0_100` | **53.4 / 100** |
 | `suggested_tip_band` | 0–59 ("Poor") |
 | `suggested_tip_pct` | 10% |
 | `fused_source` | ekf |
-| `aggregate_raw` | 0.6597 |
+| `aggregate_raw` | 0.4657 |
 
 ---
 
-## Component Breakdown
+## Component Breakdown (after jerk LPF fix)
 
 | Component | raw | weight | weighted | Status |
 |---|---|---|---|---|
-| `jerk` | 1.000 | 0.30 | 0.300 | **SATURATED** |
+| `jerk` | 0.353 | 0.30 | 0.106 | Fixed (was 1.000) |
 | `harsh_brake` | 0.000 | 0.20 | 0.000 | OK |
 | `lat_accel` | 0.065 | 0.15 | 0.010 | OK |
 | `speed` | 1.000 | 0.20 | 0.200 | **SATURATED** |
 | `deviation` | 1.000 | 0.10 | 0.100 | **SATURATED** |
 | `lane_change` | 1.000 | 0.05 | 0.050 | **SATURATED** |
 
-4 of 6 components are fully saturated (`raw = 1.0`), accounting for 0.650 of the 0.660 aggregate penalty.
+3 of 6 components remain saturated; `speed`, `deviation`, `lane_change` require
+`reference_path` data fixes (P2/P3 below).
 
 ---
 

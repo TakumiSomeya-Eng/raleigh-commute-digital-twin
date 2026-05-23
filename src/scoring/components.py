@@ -149,7 +149,8 @@ def jerk_penalty(
     if trip_duration < _MIN_TRIP_DURATION_S:
         return 0.0
 
-    j_actual = _j_lon(t, _a_lon(t, v))
+    a_lon = _lpf_accel(_a_lon(t, v), t)
+    j_actual = _lpf_accel(_j_lon(t, a_lon), t, cutoff_hz=1.0)
     j_ideal = _interp_ideal(ideal, t, "j_lon_mps3")
 
     excess = np.maximum(0.0, np.abs(j_actual) - np.abs(j_ideal))
