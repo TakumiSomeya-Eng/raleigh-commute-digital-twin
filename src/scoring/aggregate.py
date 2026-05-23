@@ -164,7 +164,7 @@ def build_score_json(
         "lat_accel": lat_accel_penalty(fused, ideal, scoring_yaml),
         "speed": speed_penalty(fused, reference_path, scoring_yaml),
         "deviation": deviation_penalty(fused, reference_path, scoring_yaml),
-        "lane_change": lane_change_penalty(fused, scoring_yaml),
+        "lane_change": lane_change_penalty(fused, scoring_yaml, reference_path=reference_path),
     }
 
     aggregate_raw, components_detail = compute_aggregate(raw, weights)

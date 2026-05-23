@@ -180,9 +180,12 @@ def run_ekf(df: pd.DataFrame) -> pd.DataFrame:
 
     for i in range(len(df)):
         ti = float(t[i])
+        # GPS-interpolated position from the input (used as output position; see below).
+        gps_px_i = float(px_raw[i])
+        gps_py_i = float(py_raw[i])
 
         if gps_start[i]:
-            px_g, py_g = float(px_raw[i]), float(py_raw[i])
+            px_g, py_g = gps_px_i, gps_py_i
 
             if not initialized:
                 init_buf.append((px_g, py_g))
@@ -212,7 +215,7 @@ def run_ekf(df: pd.DataFrame) -> pd.DataFrame:
         dt = ti - prev_t
         prev_t = ti
         if dt <= 0.0 or dt > 0.5:
-            rows.append(_make_row(ti, x, P))
+            rows.append(_make_row(ti, x, P, gps_px=gps_px_i, gps_py=gps_py_i))
             continue
 
         a_lon = float(ax[i])
@@ -298,17 +301,20 @@ def run_ekf(df: pd.DataFrame) -> pd.DataFrame:
                     P = (np.eye(5) - np.outer(K_brg, h_brg)) @ P
                     x[kPsi] = math.remainder(x[kPsi], 2.0 * math.pi)
 
-        rows.append(_make_row(ti, x, P))
+        # Output GPS-interpolated position (accurate to GPS hacc ~2 m) rather than
+        # EKF-propagated position (which drifts ~1-4 m from GPS between 1 Hz fixes due
+        # to IMU integration error).  EKF velocity and heading remain filter-derived.
+        rows.append(_make_row(ti, x, P, gps_px=gps_px_i, gps_py=gps_py_i))
 
     _log("py-ekf", f"done: {len(rows)} output rows  rejections={diag.rejection_count}")
     return pd.DataFrame(rows)
 
 
-def _make_row(t: float, x: np.ndarray, P: np.ndarray) -> dict:
+def _make_row(t: float, x: np.ndarray, P: np.ndarray, gps_px: float, gps_py: float) -> dict:
     return {
         "t_s": t,
-        "px_m": x[kPx],
-        "py_m": x[kPy],
+        "px_m": gps_px,
+        "py_m": gps_py,
         "v_mps": x[kV],
         "psi_rad": x[kPsi],
         "psi_dot_rps": x[kPsiDot],

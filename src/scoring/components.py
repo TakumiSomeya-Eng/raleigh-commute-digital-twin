@@ -463,6 +463,7 @@ _MIN_SUSTAINED_S: float = 3.0  # seconds of sustained lateral displacement
 def lane_change_penalty(
     fused: pd.DataFrame,
     config_path: Path | None = None,
+    reference_path: pd.DataFrame | None = None,
 ) -> float:
     """Count abrupt yaw excursions that produce sustained lateral displacement.
 
@@ -474,10 +475,15 @@ def lane_change_penalty(
     1. Compute rolling yaw change: yaw_change[i] = |ψ[i+win] − ψ[i]|.
     2. Detect contiguous events where yaw_change > yaw_delta_rad.
     3. For each event (start index s):
-       a. Compute lateral displacement at s + win + sus_win relative to s,
-          projected onto the direction perpendicular to the pre-event heading.
-       b. If |lateral_displacement| >= lat_disp_m: count as lane change.
-       c. Apply cooldown to avoid double-counting the same manoeuvre.
+       a. When reference_path is provided: measure the CHANGE in road-relative
+          lateral offset (distance to reference centerline) between s and
+          s + win + sus_win.  Road curves preserve this distance; lane changes
+          shift it by ~one lane width.
+       b. When reference_path is None (legacy): project displacement onto the
+          perpendicular of the pre-event heading (vehicle-centric coordinates).
+          This triggers falsely on highway interchanges and curves.
+       c. If |lateral_change| >= lat_disp_m: count as lane change.
+       d. Apply cooldown to avoid double-counting the same manoeuvre.
     4. rate_epm = lane_changes / (trip_duration / 60)
     5. penalty = clip(rate_epm / lane_change_epm_sat, 0, 1)
 
@@ -487,6 +493,10 @@ def lane_change_penalty(
         Fused filter output.  Required: t_s, v_mps, psi_rad, px_m, py_m.
     config_path:
         Path to scoring.yaml.
+    reference_path:
+        Reference path DataFrame with px_m, py_m columns.  When supplied,
+        road-relative lateral offset is used instead of heading-based
+        displacement, eliminating false positives from curves and interchanges.
 
     Returns
     -------
@@ -515,6 +525,14 @@ def lane_change_penalty(
     if win >= n:
         return 0.0
 
+    # Pre-compute road-relative offset for all positions when reference_path available.
+    road_offset: np.ndarray | None = None
+    if reference_path is not None:
+        ref_px = reference_path["px_m"].to_numpy(dtype=float)
+        ref_py = reference_path["py_m"].to_numpy(dtype=float)
+        idx = _nearest_ref_idx(px, py, ref_px, ref_py)
+        road_offset = np.sqrt((px - ref_px[idx]) ** 2 + (py - ref_py[idx]) ** 2)
+
     # Rolling yaw change over forward window of length `win`
     yaw_change = np.abs(psi[win:] - psi[:-win])  # length n - win
     is_excursion = yaw_change > yaw_delta
@@ -539,14 +557,24 @@ def lane_change_penalty(
         # Check lateral displacement from event start to (event_start + win + sus_win)
         check_idx = min(n - 1, s + win + sus_win)
 
-        # Pre-event heading: perpendicular vector = (-sin ψ, cos ψ)
-        psi_pre = psi[max(0, s - 1)]
-        perp_x = -np.sin(psi_pre)
-        perp_y = np.cos(psi_pre)
-
-        dx = px[check_idx] - px[s]
-        dy = py[check_idx] - py[s]
-        lat = abs(dx * perp_x + dy * perp_y)
+        if road_offset is not None:
+            # Road-relative: change in distance to centerline.
+            # Road curves keep this ~constant; lane changes shift it by ~lane width.
+            # Skip events where either endpoint is off the reference road (e.g. at
+            # trip start / end before joining the reference route, or after a genuine
+            # road departure).  Changes are only meaningful while on the reference road.
+            _ON_ROAD_M = 10.0
+            if road_offset[s] > _ON_ROAD_M or road_offset[check_idx] > _ON_ROAD_M:
+                continue
+            lat = abs(road_offset[check_idx] - road_offset[s])
+        else:
+            # Legacy heading-based (triggers falsely on highway curves).
+            psi_pre = psi[max(0, s - 1)]
+            perp_x = -np.sin(psi_pre)
+            perp_y = np.cos(psi_pre)
+            dx = px[check_idx] - px[s]
+            dy = py[check_idx] - py[s]
+            lat = abs(dx * perp_x + dy * perp_y)
 
         if lat >= lat_disp_m:
             lane_changes += 1

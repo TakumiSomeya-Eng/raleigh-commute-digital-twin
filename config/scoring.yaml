@@ -26,8 +26,9 @@ thresholds:
   lane_change_yaw_delta_rad: 0.15
   # Time window for yaw excursion (seconds).
   lane_change_yaw_window_s: 2.0
-  # Minimum lateral displacement for lane-change confirmation (meters).
-  lane_change_lat_disp_m: 2.0
+  # Minimum road-relative lateral offset change for lane-change confirmation (meters).
+  # 3.0 m = minimum AASHTO lane width; sub-3m changes cannot represent a full lane change.
+  lane_change_lat_disp_m: 3.0
 
 # Saturation constants -- the input level that maps to penalty = 1.0.
 # Tune these after collecting real Uber-ride data.
