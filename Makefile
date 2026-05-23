@@ -22,6 +22,20 @@ TRACE_day2 := ../../../Data/Saint_Marys_Street-2026-04-17_13-20-03
 DATA_DIR    := $(TRACE_$(TRACE))
 
 # ---------------------------------------------------------------------------
+# Output-file paths (vary by TRACE / FILTER)
+# Make uses these as real file targets to detect staleness.
+# ---------------------------------------------------------------------------
+
+OUT_ALIGNED := out/$(TRACE)/aligned_100hz.parquet
+OUT_FUSED   := out/$(TRACE)/fused_$(FILTER).parquet
+OUT_MATCHED := out/$(TRACE)/route_matched.parquet
+OUT_REF     := out/$(TRACE)/reference_path.parquet
+OUT_SPEED   := out/$(TRACE)/ideal_speed.parquet
+OUT_TRAJ    := out/$(TRACE)/ideal_trajectory.parquet
+OUT_SCORE   := out/$(TRACE)/score.json
+OUT_REPORT  := out/$(TRACE)/report.html
+
+# ---------------------------------------------------------------------------
 # Phony targets
 # ---------------------------------------------------------------------------
 
@@ -121,12 +135,7 @@ bag:
 		--out-dir  "out/$(TRACE)"
 
 ## fuse        : Run EKF/UKF sensor fusion (FR-4.2/5.2)  TRACE=...  FILTER=ekf|ukf
-fuse:
-	mkdir -p out/$(TRACE)
-	PYTHONPATH="src" python scripts/run_fuse.py \
-		--trace  "$(TRACE)" \
-		--filter "$(FILTER)" \
-		--out-dir out
+fuse: $(OUT_FUSED)
 
 ## eval        : Compute RMSE evaluation (FR-6.2/6.4)  TRACE=...  FILTER=...  [STAGE=gt|rmse|compare|all]
 STAGE ?= all
@@ -153,60 +162,85 @@ else
 		--out-dir out
 endif
 
-## ideal       : Map-match + synthesize ideal trajectory (FR-9)  TRACE=...  [VALHALLA_URL=http://localhost:8002]
+## ideal       : Map-match fused trajectory via Valhalla (FR-9.1)  TRACE=...  [VALHALLA_URL=http://localhost:8002]
 VALHALLA_URL ?= http://localhost:8002
-ideal:
+ideal: $(OUT_MATCHED)
+
+## ref         : Extract road centerline reference path (FR-9.3)  TRACE=...  [SKIP_OVERPASS=1]
+SKIP_OVERPASS ?=
+ref: $(OUT_REF)
+
+## speed       : Compute ideal speed profile (FR-9.4)  TRACE=...
+speed: $(OUT_SPEED)
+
+## traj        : Synthesise ideal trajectory (FR-9.5)  TRACE=...
+traj: $(OUT_TRAJ)
+
+## score       : Compute score.json + tip lookup (FR-10.7)  TRACE=...  FILTER=ekf|ukf
+score: $(OUT_SCORE)
+
+## report      : Render HTML report + index (FR-11.1/11.4)  TRACE=...
+report: $(OUT_REPORT)
+
+## deploy      : Deploy to AWS (Phase 2 -- deferred)
+deploy:
+	@printf '[%s] [Phase-2 deploy] INFO  deploy -- deferred to Phase 2\n' \
+		"$$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+# ---------------------------------------------------------------------------
+# File-based dependency rules
+# Make skips a step when the output is newer than all prerequisites.
+# Chain: aligned -> fused -> matched -> ref -> speed -> traj -> score -> report
+# ---------------------------------------------------------------------------
+
+$(OUT_FUSED): $(OUT_ALIGNED) config/data_gen.yaml
+	mkdir -p out/$(TRACE)
+	PYTHONPATH="src" python scripts/run_fuse.py \
+		--trace  "$(TRACE)" \
+		--filter "$(FILTER)" \
+		--out-dir out
+
+$(OUT_MATCHED): $(OUT_FUSED) config/data_gen.yaml
 	PYTHONPATH="src" python -m ideal_driver match \
 		--trace   "$(TRACE)" \
 		--out-dir out \
 		--config  config/data_gen.yaml \
 		--url     "$(VALHALLA_URL)"
 
-## ref         : Extract road centerline reference path (FR-9.3)  TRACE=...  [SKIP_OVERPASS=1]
-SKIP_OVERPASS ?=
-ref:
+$(OUT_REF): $(OUT_MATCHED) config/ideal.yaml config/speed_limits.yaml
 	PYTHONPATH="src" python -m ideal_driver ref \
-		--trace   "$(TRACE)" \
-		--out-dir out \
-		--config  config/ideal.yaml \
+		--trace        "$(TRACE)" \
+		--out-dir      out \
+		--config       config/ideal.yaml \
 		--speed-limits config/speed_limits.yaml \
 		$(if $(SKIP_OVERPASS),--skip-overpass,)
 
-## speed       : Compute ideal speed profile (FR-9.4)  TRACE=...
-speed:
+$(OUT_SPEED): $(OUT_REF) config/ideal.yaml
 	PYTHONPATH="src" python -m ideal_driver speed \
 		--trace   "$(TRACE)" \
 		--out-dir out \
 		--config  config/ideal.yaml
 
-## traj        : Synthesise ideal trajectory (FR-9.5)  TRACE=...
-traj:
+$(OUT_TRAJ): $(OUT_SPEED) config/ideal.yaml
 	PYTHONPATH="src" python -m ideal_driver traj \
 		--trace   "$(TRACE)" \
 		--out-dir out \
 		--config  config/ideal.yaml
 
-## score       : Compute score.json + tip lookup (FR-10.7)  TRACE=...  FILTER=ekf|ukf
-score:
+$(OUT_SCORE): $(OUT_FUSED) $(OUT_TRAJ) $(OUT_REF) config/scoring.yaml config/ideal.yaml
 	PYTHONPATH="src" python -m scoring score \
-		--trace   "$(TRACE)" \
-		--filter  "$(FILTER)" \
-		--out-dir out \
-		--config  config/scoring.yaml \
+		--trace        "$(TRACE)" \
+		--filter       "$(FILTER)" \
+		--out-dir      out \
+		--config       config/scoring.yaml \
 		--ideal-config config/ideal.yaml
 
-## report      : Render HTML report + index (FR-11.1/11.4)  TRACE=...
-report:
+$(OUT_REPORT): $(OUT_SCORE) $(OUT_FUSED) $(OUT_TRAJ) config/scoring.yaml config/ideal.yaml
 	PYTHONPATH="src" python -m reporting render \
-		--trace  "$(TRACE)" \
-		--out-dir out \
-		--config  config/scoring.yaml \
+		--trace        "$(TRACE)" \
+		--out-dir      out \
+		--config       config/scoring.yaml \
 		--ideal-config config/ideal.yaml
 	PYTHONPATH="src" python -m reporting index \
 		--out-dir out \
 		--ratings config/ratings.yaml
-
-## deploy      : Deploy to AWS (Phase 2 -- deferred)
-deploy:
-	@printf '[%s] [Phase-2 deploy] INFO  deploy -- deferred to Phase 2\n' \
-		"$$(date -u +%Y-%m-%dT%H:%M:%SZ)"
