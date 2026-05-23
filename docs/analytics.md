@@ -5,66 +5,70 @@ Command: `PYTHONPATH=src py -3.10 -m scoring score --trace day2 --filter ekf --o
 
 ---
 
-## Score Summary
+## Score History
 
-| Run | `score_0_100` | `aggregate_raw` | `jerk` raw | Note |
+| Run | `score_0_100` | `jerk` | `speed` | Note |
 |---|---|---|---|---|
-| Initial (2026-05-23) | 34.0 | 0.6597 | 1.000 | Before LPF fix |
-| After jerk LPF fix | **53.4** | 0.4657 | **0.353** | `components.py` double-LPF |
+| Initial (2026-05-23) | 34.0 | 1.000 | 1.000 | Before any fixes |
+| After jerk LPF fix | 53.4 | **0.353** | 1.000 | double-LPF on `components.py` |
+| After OSM speed limits | **54.4** | 0.353 | **0.954** | 59 corridors in `speed_limits.yaml` |
 
-Current result (after fix):
+Current result:
 
 | Field | Value |
 |---|---|
-| `score_0_100` | **53.4 / 100** |
+| `score_0_100` | **54.4 / 100** |
 | `suggested_tip_band` | 0–59 ("Poor") |
 | `suggested_tip_pct` | 10% |
 | `fused_source` | ekf |
-| `aggregate_raw` | 0.4657 |
+| `aggregate_raw` | 0.4564 |
 
 ---
 
-## Component Breakdown (after jerk LPF fix)
+## Component Breakdown (current)
 
 | Component | raw | weight | weighted | Status |
 |---|---|---|---|---|
 | `jerk` | 0.353 | 0.30 | 0.106 | Fixed (was 1.000) |
 | `harsh_brake` | 0.000 | 0.20 | 0.000 | OK |
 | `lat_accel` | 0.065 | 0.15 | 0.010 | OK |
-| `speed` | 1.000 | 0.20 | 0.200 | **SATURATED** |
+| `speed` | 0.954 | 0.20 | 0.191 | Improved (was 1.000) |
 | `deviation` | 1.000 | 0.10 | 0.100 | **SATURATED** |
 | `lane_change` | 1.000 | 0.05 | 0.050 | **SATURATED** |
-
-3 of 6 components remain saturated; `speed`, `deviation`, `lane_change` require
-`reference_path` data fixes (P2/P3 below).
 
 ---
 
 ## Root Cause Analysis
 
-### `speed` — saturated due to uniform OSM speed limit
+### `speed` — was saturated due to uniform OSM speed limit; partially fixed
 
-`reference_path.parquet` has `speed_limit_mps = 13.4` (30 mph) for all 13,851 samples
-(std ≈ 3.6e-15, i.e. exactly constant). This is the OSM fallback default applied when
-real speed-limit tags are absent.
+**Initial state**: `reference_path.parquet` had `speed_limit_mps = 13.4` (30 mph) for
+all 13,851 samples — the fallback default when OSM `maxspeed` tags were absent.
+
+**Fix applied**: Queried Overpass API for all 71 OSM way IDs in the route, obtaining
+real speed limits for 57/71 ways. Added 2 `motorway_link` ramps (45 mph) from highway
+type inference. Results written to `config/speed_limits.yaml` (59 corridors total).
 
 ```
-reference_path speed_limit_mps:
-  count  13851   unique values: 1
-  value  13.4 m/s  (≈ 30 mph) — entire 13.85 km route
-
-fused_ekf v_mps:
-  mean   15.3 m/s  (≈ 55 km/h)
-  p50    18.2 m/s  (≈ 65 km/h)
-  p75    22.5 m/s  (≈ 81 km/h)
-  max    29.4 m/s  (≈ 106 km/h)
-
-→ 59.6 % of samples exceed limit + tolerance (13.4 + 0.89 = 14.29 m/s)
+reference_path speed_limit_mps after fix:
+  25 mph  (11.18 m/s)  :  2.9%  — local streets (West Johnson St, etc.)
+  30 mph  (13.40 m/s)  : 14.2%  — untagged ways (service roads) + default
+  35 mph  (15.65 m/s)  :  2.8%  — West Peace Street
+  40 mph  (17.88 m/s)  :  2.5%  — South New Hope Road area
+  45 mph  (20.12 m/s)  : 35.4%  — Capital Boulevard (dominant segment)
+  55 mph  (24.59 m/s)  :  5.5%
+  60 mph  (26.82 m/s)  : 30.4%  — I-440
+  70 mph  (31.29 m/s)  :  6.4%  — I-87 / US-64 / US-264
 ```
 
-Normal highway driving saturates the penalty immediately.
-Fix: regenerate `reference_path` with real per-segment OSM speed tags, or override
-in `config/ideal.yaml`.
+**Remaining issue**: `speed` raw = 0.954 (not yet fully resolved).
+Fraction of samples still exceeding limit + tolerance: **21.2 %**.
+Mean excess where positive: **3.55 m/s**.
+Mean squared excess: **5.29 m²/s²** (saturation = 4.0 m²/s²).
+
+The driver appears to genuinely exceed posted limits on Capital Boulevard and I-440
+segments, which accounts for residual penalty. The remaining 14 untagged `service`
+ways retain the 30 mph default, which is appropriate for parking-lot/driveway geometry.
 
 ---
 
@@ -119,13 +123,34 @@ reduce these as well.
 
 ---
 
-## Proposed Fixes
+## Fix Log
 
-| Priority | Component | Root cause | Fix |
+| Priority | Component | Root cause | Status |
 |---|---|---|---|
-| P1 | `jerk` | Double-diff of noisy EKF velocity | Apply 3 Hz LPF to `a_lon` in `jerk_penalty()` before computing `j_lon` (`components.py:152`) |
-| P2 | `speed` | OSM speed limit defaults to 30 mph everywhere | Regenerate `reference_path` with real per-segment speed tags |
-| P3 | `deviation` / `lane_change` | `reference_path` centerline offset | Improves automatically once `reference_path` is corrected |
+| P1 | `jerk` | Double-diff of noisy EKF velocity | **FIXED** — double LPF (3 Hz on `a_lon`, 1 Hz on `j_lon`) in `components.py` |
+| P2 | `speed` | OSM speed limit uniform 30 mph fallback | **IMPROVED** — 59 corridors populated in `speed_limits.yaml`; raw 1.0 → 0.954 |
+| P3 | `deviation` / `lane_change` | Arc-length mismatch between fused positions and `reference_path` | **OPEN** — requires nearest-point projection in scoring pipeline |
 
-The `jerk` fix is a one-line code change; the `speed` / `deviation` / `lane_change`
-fixes require a data pipeline re-run.
+## Remaining Issues
+
+### `deviation` and `lane_change` still saturated
+
+Both use arc-length-based interpolation from `reference_path`:
+
+```python
+s_fused   = cumulative_arc_length(px_fused, py_fused)   # 0 .. 14,398 m
+v_limit   = np.interp(s_fused, ref_s, ref_vl)           # ref_s: 0 .. 13,850 m
+```
+
+`s_fused` (14,398 m) > `ref_s` (13,850 m): the fused arc-length exceeds the reference
+path length by 548 m. Values beyond `ref_s[-1]` are clamped to the last reference point,
+misassigning positions near the trip end to the wrong road segment.
+
+More fundamentally, the arc-length coordinate systems differ: `s_fused` is computed
+from the (potentially drifting) EKF positions, while `ref_s` is from the OSM-matched
+centerline. Unless both start and end at exactly the same locations with no drift,
+the mapping will be systematically off.
+
+**Proper fix**: replace arc-length interpolation with nearest-point projection
+(find the closest `reference_path` row to each fused `(px_m, py_m)` in 2D) in
+`speed_penalty()`, `deviation_penalty()`, and `lane_change_penalty()`.
