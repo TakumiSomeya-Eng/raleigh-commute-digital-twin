@@ -40,86 +40,94 @@ Current result:
 
 ## Root Cause Analysis
 
-### `speed` — was saturated due to uniform OSM speed limit; partially fixed
+### `jerk` — FIXED (was: EKF velocity noise double-differentiation)
 
-**Initial state**: `reference_path.parquet` had `speed_limit_mps = 13.4` (30 mph) for
-all 13,851 samples — the fallback default when OSM `maxspeed` tags were absent.
+**Diagnosis**: `jerk_penalty()` computed `j = d²v/dt²` via two successive
+`np.gradient` calls with no filtering. At 100 Hz, a 1 m/s velocity step between
+adjacent EKF samples produces `a_lon = 100 m/s²` and `j_lon = 10,000 m/s³` —
+far above the 3.0 m/s³ saturation constant.
 
-**Fix applied**: Queried Overpass API for all 71 OSM way IDs in the route, obtaining
-real speed limits for 57/71 ways. Added 2 `motorway_link` ramps (45 mph) from highway
-type inference. Results written to `config/speed_limits.yaml` (59 corridors total).
+```
+actual j_lon before fix:  std = 47.4 m/s³,  min = -1150,  max = +1043 m/s³
+                           |j| > 3.0 m/s³ in 57.1 % of samples
+ideal j_lon_mps3:          p50 ≈ 0,  p75 = 0.033 m/s³  (near-zero baseline)
+```
+
+Key diagnostic: `harsh_brake = 0.0` despite `jerk` being saturated. Since
+`harsh_brake` applies a 3 Hz LPF before detection, its zero score confirmed the
+driver did not brake harshly — the jerk penalty was reacting to noise, not real jerk.
+
+**Fix** (`src/scoring/components.py`): apply `_lpf_accel(a_lon, 3 Hz)` then
+`_lpf_accel(j_lon, 1 Hz)` before comparing against `j_ideal`. The second stage at
+1 Hz is key: acceleration changes over less than 1 second do not contribute to the
+jerk penalty, which is the appropriate timescale for ride-comfort assessment.
+
+```
+actual j_lon after fix:   std = 2.26 m/s³,  |j| > 3.0 in 14.0 % of samples
+mean_excess = 1.06 m/s³  →  penalty = 0.353
+```
+
+---
+
+### `speed` — IMPROVED (was: uniform 30 mph OSM fallback)
+
+**Diagnosis**: `config/speed_limits.yaml` had `corridors: {}` (empty). All 71 OSM
+way IDs fell back to `urban_default_mps: 13.4` (30 mph). With the driver's median
+speed at 18.2 m/s (65 km/h), 59.6 % of samples exceeded the 14.29 m/s threshold,
+saturating the penalty immediately.
+
+**Fix**: Queried Overpass API (with `User-Agent` header — without it returns HTTP 406)
+for all 71 way IDs. Got real `maxspeed` tags for 57/71 ways. For the remaining 14,
+queried `highway` type: 2 were `motorway_link` (set to 45 mph); 12 were `service`
+roads (parking/driveway geometry, 30 mph default is appropriate).
 
 ```
 reference_path speed_limit_mps after fix:
   25 mph  (11.18 m/s)  :  2.9%  — local streets (West Johnson St, etc.)
-  30 mph  (13.40 m/s)  : 14.2%  — untagged ways (service roads) + default
+  30 mph  (13.40 m/s)  : 14.2%  — service roads + untagged (default)
   35 mph  (15.65 m/s)  :  2.8%  — West Peace Street
-  40 mph  (17.88 m/s)  :  2.5%  — South New Hope Road area
+  40 mph  (17.88 m/s)  :  2.5%  — South New Hope Road
   45 mph  (20.12 m/s)  : 35.4%  — Capital Boulevard (dominant segment)
   55 mph  (24.59 m/s)  :  5.5%
   60 mph  (26.82 m/s)  : 30.4%  — I-440
   70 mph  (31.29 m/s)  :  6.4%  — I-87 / US-64 / US-264
 ```
 
-**Remaining issue**: `speed` raw = 0.954 (not yet fully resolved).
-Fraction of samples still exceeding limit + tolerance: **21.2 %**.
-Mean excess where positive: **3.55 m/s**.
-Mean squared excess: **5.29 m²/s²** (saturation = 4.0 m²/s²).
-
-The driver appears to genuinely exceed posted limits on Capital Boulevard and I-440
-segments, which accounts for residual penalty. The remaining 14 untagged `service`
-ways retain the 30 mph default, which is appropriate for parking-lot/driveway geometry.
+**Remaining**: `speed` raw = 0.954. Fraction still exceeding limit + tolerance: 21.2 %.
+Mean excess where positive: 3.55 m/s. Mean squared excess: 5.29 m²/s² (sat = 4.0).
+Residual penalty appears to reflect genuine speeding on Capital Boulevard and I-440.
 
 ---
 
-### `jerk` — saturated due to double-differentiation of noisy EKF velocity
+### `deviation` and `lane_change` — OPEN (arc-length coordinate mismatch)
 
-`jerk_penalty()` computes `j = d²v/dt²` via two successive `np.gradient` calls with no
-low-pass filter. Small velocity noise in the 100 Hz EKF output is amplified ~10,000×
-by the second derivative.
+**Diagnosis**: both penalties map fused positions to the reference path via
+cumulative arc-length interpolation:
 
-```
-actual j_lon (from fused_ekf):
-  std    47.4 m/s³   (ideal std: 1.19 m/s³)
-  min  -1150 m/s³
-  max  +1043 m/s³    ← physically impossible; pure numerical artifact
-  |j| > 3.0 m/s³:  57.1 % of samples
-
-ideal j_lon_mps3 (from ideal_trajectory):
-  p50  ≈ 0 m/s³
-  p75    0.033 m/s³  → baseline is near-zero for 75 % of the trip
+```python
+s_fused  = cumulative_arc_length(px_fused, py_fused)   # 0 .. 14,398 m
+ref_val  = np.interp(s_fused, ref_s, ref_col)          # ref_s: 0 .. 13,850 m
 ```
 
-At 100 Hz, a 1 m/s velocity step between adjacent samples produces `a_lon = 100 m/s²`,
-and then `j_lon = 10,000 m/s³` — far above the 3.0 m/s³ saturation constant.
+`s_fused` (14,398 m) exceeds `ref_s` (13,850 m) by 548 m — positions near the trip
+end are clamped to the last reference point, assigning them to the wrong road segment.
+More fundamentally, the two arc-length origins differ: `s_fused` is accumulated from
+EKF positions (which drift), while `ref_s` is from the OSM-matched centerline.
+Any drift or offset between the two coordinate systems causes systematic mislabelling.
 
-Note: `harsh_brake = 0.0` despite `jerk` being saturated. This is consistent with the
-diagnosis — `harsh_brake` applies a 3 Hz Butterworth LPF before detection, which
-removes the same noise that inflates jerk. The driver did not brake harshly; the jerk
-penalty is reacting to EKF velocity noise, not real jerk.
-
-Fix: apply the same LPF to `a_lon` inside `jerk_penalty()` before computing the second
-derivative (`src/scoring/components.py:152`).
-
----
-
-### `deviation` and `lane_change` — likely amplified by reference_path geometry offset
-
-Both penalties use `reference_path` centerline positions (`px_m`, `py_m`) as the
-baseline. If the OSM geometry is offset from the actual road (common on multi-lane
-roads), every sample will carry a systematic deviation, saturating both penalties.
-Fixing the `reference_path` regeneration (same action as `speed`) is expected to
-reduce these as well.
+**Proper fix**: replace arc-length interpolation with nearest-point 2D projection
+(find the closest `reference_path` row to each fused `(px_m, py_m)`) in
+`speed_penalty()`, `deviation_penalty()`, and `lane_change_penalty()`.
 
 ---
 
 ### `harsh_brake` and `lat_accel` — no issues
 
 `harsh_brake = 0.0`: no deceleration event exceeded −3.5 m/s² for ≥ 0.3 s after
-3 Hz low-pass filtering. The driver braked smoothly throughout the trip.
+3 Hz LPF. The driver braked smoothly throughout the trip.
 
-`lat_accel = 0.065`: lateral acceleration excess is only 6.5% of saturation
-(4.0 m²/s⁴). Cornering behaviour is close to the ideal profile.
+`lat_accel = 0.065`: only 6.5 % of the 4.0 m²/s⁴ saturation. Cornering behaviour
+is close to the ideal profile.
 
 ---
 
