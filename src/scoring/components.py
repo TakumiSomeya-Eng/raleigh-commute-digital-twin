@@ -21,7 +21,7 @@ Input DataFrames
 
 ``reference_path``:
     Reference path parquet (reference_path.parquet, FR-9.3).
-    Required for T4.6 only: s_m, px_m, py_m, speed_limit_mps.
+    Required for T4.6 only: px_m, py_m, speed_limit_mps.
 
 Kinematic derivations
 ---------------------
@@ -38,6 +38,7 @@ import numpy as np
 import pandas as pd
 import yaml
 from scipy.signal import butter, filtfilt
+from scipy.spatial import cKDTree
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -313,10 +314,21 @@ def lat_accel_penalty(
 # ---------------------------------------------------------------------------
 
 
-def _cumulative_arc_length(px: np.ndarray, py: np.ndarray) -> np.ndarray:
-    """Cumulative arc-length from successive ENU positions."""
-    ds = np.sqrt(np.diff(px) ** 2 + np.diff(py) ** 2)
-    return np.concatenate([[0.0], np.cumsum(ds)])
+def _nearest_ref_idx(
+    px_fused: np.ndarray,
+    py_fused: np.ndarray,
+    ref_px: np.ndarray,
+    ref_py: np.ndarray,
+) -> np.ndarray:
+    """Return the index of the nearest reference-path point for each fused position.
+
+    Uses a KD-tree so the complexity is O(n log m) rather than O(n × m).
+    This avoids the arc-length coordinate mismatch that occurs when the fused
+    trajectory drifts relative to the OSM-matched centerline.
+    """
+    tree = cKDTree(np.column_stack([ref_px, ref_py]))
+    _, idx = tree.query(np.column_stack([px_fused, py_fused]), k=1)
+    return idx.astype(int)
 
 
 # ---------------------------------------------------------------------------
@@ -337,8 +349,9 @@ def speed_penalty(
 
     Algorithm
     ---------
-    1. Compute fused cumulative arc-length from px_m, py_m.
-    2. Interpolate speed_limit_mps from reference_path onto fused arc-lengths.
+    1. For each fused position (px_m, py_m), find the nearest point on the
+       reference path using a KD-tree (2D nearest-neighbour projection).
+    2. Read speed_limit_mps at that nearest reference point.
     3. excess = max(0, v - (limit + tolerance))
     4. mean_sq = integral(excess^2, dt) / trip_duration
     5. penalty = clip(mean_sq / speed_sq_sat, 0, 1)
@@ -348,7 +361,7 @@ def speed_penalty(
     fused:
         Fused filter output.  Required: t_s, v_mps, px_m, py_m.
     reference_path:
-        Reference path.  Required: s_m, speed_limit_mps.
+        Reference path.  Required: px_m, py_m, speed_limit_mps.
     config_path:
         Path to scoring.yaml.
 
@@ -369,11 +382,11 @@ def speed_penalty(
     if trip_duration < _MIN_TRIP_DURATION_S:
         return 0.0
 
-    # Map fused positions to arc-length, then interpolate speed limits
-    s_fused = _cumulative_arc_length(px, py)
-    ref_s = reference_path["s_m"].to_numpy(dtype=float)
+    # Nearest-point projection: avoid arc-length coordinate mismatch
+    ref_px = reference_path["px_m"].to_numpy(dtype=float)
+    ref_py = reference_path["py_m"].to_numpy(dtype=float)
     ref_vl = reference_path["speed_limit_mps"].to_numpy(dtype=float)
-    v_limit = np.interp(s_fused, ref_s, ref_vl, left=ref_vl[0], right=ref_vl[-1])
+    v_limit = ref_vl[_nearest_ref_idx(px, py, ref_px, ref_py)]
 
     excess = np.maximum(0.0, v - (v_limit + tol))
     mean_sq = float(np.trapz(excess**2, t)) / trip_duration
@@ -397,19 +410,19 @@ def deviation_penalty(
 
     Algorithm
     ---------
-    1. Compute fused cumulative arc-length.
-    2. Interpolate reference px_m, py_m at fused arc-lengths.
-    3. deviation = Euclidean distance between fused and interpolated ref.
-    4. excess = max(0, deviation - inlane_m)
-    5. mean_dev = integral(excess, dt) / trip_duration
-    6. penalty = clip(mean_dev / deviation_mean_sat, 0, 1)
+    1. For each fused position (px_m, py_m), find the nearest point on the
+       reference path using a KD-tree (2D nearest-neighbour projection).
+    2. deviation = Euclidean distance from fused position to that nearest point.
+    3. excess = max(0, deviation - inlane_m)
+    4. mean_dev = integral(excess, dt) / trip_duration
+    5. penalty = clip(mean_dev / deviation_mean_sat, 0, 1)
 
     Parameters
     ----------
     fused:
         Fused filter output.  Required: t_s, px_m, py_m.
     reference_path:
-        Reference path.  Required: s_m, px_m, py_m.
+        Reference path.  Required: px_m, py_m.
     config_path:
         Path to scoring.yaml.
 
@@ -429,15 +442,12 @@ def deviation_penalty(
     if trip_duration < _MIN_TRIP_DURATION_S:
         return 0.0
 
-    s_fused = _cumulative_arc_length(px_f, py_f)
-    ref_s = reference_path["s_m"].to_numpy(dtype=float)
+    # Nearest-point projection: avoid arc-length coordinate mismatch
     ref_px = reference_path["px_m"].to_numpy(dtype=float)
     ref_py = reference_path["py_m"].to_numpy(dtype=float)
+    idx = _nearest_ref_idx(px_f, py_f, ref_px, ref_py)
 
-    ref_px_at_s = np.interp(s_fused, ref_s, ref_px, left=ref_px[0], right=ref_px[-1])
-    ref_py_at_s = np.interp(s_fused, ref_s, ref_py, left=ref_py[0], right=ref_py[-1])
-
-    dev = np.sqrt((px_f - ref_px_at_s) ** 2 + (py_f - ref_py_at_s) ** 2)
+    dev = np.sqrt((px_f - ref_px[idx]) ** 2 + (py_f - ref_py[idx]) ** 2)
     excess = np.maximum(0.0, dev - inlane_m)
     mean_dev = float(np.trapz(excess, t)) / trip_duration
     return float(np.clip(mean_dev / sat, 0.0, 1.0))

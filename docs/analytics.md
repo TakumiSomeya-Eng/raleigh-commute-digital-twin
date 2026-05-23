@@ -7,21 +7,22 @@ Command: `PYTHONPATH=src py -3.10 -m scoring score --trace day2 --filter ekf --o
 
 ## Score History
 
-| Run | `score_0_100` | `jerk` | `speed` | Note |
-|---|---|---|---|---|
-| Initial (2026-05-23) | 34.0 | 1.000 | 1.000 | Before any fixes |
-| After jerk LPF fix | 53.4 | **0.353** | 1.000 | double-LPF on `components.py` |
-| After OSM speed limits | **54.4** | 0.353 | **0.954** | 59 corridors in `speed_limits.yaml` |
+| Run | `score_0_100` | `jerk` | `speed` | `deviation` | Note |
+|---|---|---|---|---|---|
+| Initial (2026-05-23) | 34.0 | 1.000 | 1.000 | 1.000 | Before any fixes |
+| After jerk LPF fix | 53.4 | **0.353** | 1.000 | 1.000 | double-LPF on `components.py` |
+| After OSM speed limits | 54.4 | 0.353 | **0.954** | 1.000 | 59 corridors in `speed_limits.yaml` |
+| After KDTree projection | **58.3** | 0.353 | **0.759** | 1.000 | nearest-point replaces arc-length |
 
 Current result:
 
 | Field | Value |
 |---|---|
-| `score_0_100` | **54.4 / 100** |
+| `score_0_100` | **58.3 / 100** |
 | `suggested_tip_band` | 0–59 ("Poor") |
 | `suggested_tip_pct` | 10% |
 | `fused_source` | ekf |
-| `aggregate_raw` | 0.4564 |
+| `aggregate_raw` | 0.4174 |
 
 ---
 
@@ -32,9 +33,9 @@ Current result:
 | `jerk` | 0.353 | 0.30 | 0.106 | Fixed (was 1.000) |
 | `harsh_brake` | 0.000 | 0.20 | 0.000 | OK |
 | `lat_accel` | 0.065 | 0.15 | 0.010 | OK |
-| `speed` | 0.954 | 0.20 | 0.191 | Improved (was 1.000) |
-| `deviation` | 1.000 | 0.10 | 0.100 | **SATURATED** |
-| `lane_change` | 1.000 | 0.05 | 0.050 | **SATURATED** |
+| `speed` | 0.759 | 0.20 | 0.152 | Improved (was 1.000) |
+| `deviation` | 1.000 | 0.10 | 0.100 | **SATURATED — EKF drift** |
+| `lane_change` | 1.000 | 0.05 | 0.050 | **SATURATED — genuine events** |
 
 ---
 
@@ -99,25 +100,51 @@ Residual penalty appears to reflect genuine speeding on Capital Boulevard and I-
 
 ---
 
-### `deviation` and `lane_change` — OPEN (arc-length coordinate mismatch)
+### `speed` — further improved by KDTree projection
 
-**Diagnosis**: both penalties map fused positions to the reference path via
-cumulative arc-length interpolation:
+After OSM corridors were populated, `speed` raw dropped from 1.000 to 0.954 (arc-length
+interpolation was still assigning some fused positions to the wrong speed-limit segment).
+Replacing arc-length interpolation with `cKDTree` 2D nearest-point projection in
+`speed_penalty()` reduced `speed` raw from 0.954 → **0.759**.
 
-```python
-s_fused  = cumulative_arc_length(px_fused, py_fused)   # 0 .. 14,398 m
-ref_val  = np.interp(s_fused, ref_s, ref_col)          # ref_s: 0 .. 13,850 m
+---
+
+### `deviation` — OPEN (EKF position drift)
+
+**KDTree fix applied**: arc-length interpolation replaced with `cKDTree` nearest-point
+projection in `deviation_penalty()` (`src/scoring/components.py`). This eliminated
+the coordinate-system mismatch but `deviation` raw remains **1.000**.
+
+**True root cause — EKF position drift**: `cKDTree` nearest-point distances reveal
+that the EKF positions themselves are far from the road centerline:
+
+```
+nearest-point distance distribution (fused_ekf.parquet → reference_path):
+  median  :   4.5 m
+  p90     :  29.7 m
+  max     :  46.2 m
+  mean_excess (> inlane_m=1.5): 7.2 m   →   penalty = clip(7.2 / 3.0, 0, 1) = 1.000
 ```
 
-`s_fused` (14,398 m) exceeds `ref_s` (13,850 m) by 548 m — positions near the trip
-end are clamped to the last reference point, assigning them to the wrong road segment.
-More fundamentally, the two arc-length origins differ: `s_fused` is accumulated from
-EKF positions (which drift), while `ref_s` is from the OSM-matched centerline.
-Any drift or offset between the two coordinate systems causes systematic mislabelling.
+The EKF state vector tracks `[px, py, v, psi]` but **never receives GPS position
+updates** — only speed and heading from the GPS fix are used. Without position
+corrections, accumulated IMU integration error reaches 46 m over the 20-minute trip.
+`deviation_penalty` is not meaningful until the EKF fuses GPS position.
 
-**Proper fix**: replace arc-length interpolation with nearest-point 2D projection
-(find the closest `reference_path` row to each fused `(px_m, py_m)`) in
-`speed_penalty()`, `deviation_penalty()`, and `lane_change_penalty()`.
+**Fix required**: add `[lat, lon]` → EKF measurement update so the filter corrects its
+position estimate at each ~1 Hz GPS fix. This is a P2-layer change (EKF implementation),
+not a scoring-layer change.
+
+---
+
+### `lane_change` — OPEN (EKF position noise / genuine events)
+
+`lane_change_penalty()` does not use `reference_path`; it detects yaw excursions
+followed by sustained lateral displacement > 2 m in `fused (px_m, py_m)`. With EKF
+positions drifting up to 46 m, the lateral-displacement check sees spurious offsets
+from accumulated IMU error in addition to any genuine lane changes. The penalty is
+likely a mix of genuine manoeuvres on I-440 / Capital Boulevard and EKF noise;
+it cannot be trusted until EKF position drift is resolved.
 
 ---
 
@@ -136,29 +163,28 @@ is close to the ideal profile.
 | Priority | Component | Root cause | Status |
 |---|---|---|---|
 | P1 | `jerk` | Double-diff of noisy EKF velocity | **FIXED** — double LPF (3 Hz on `a_lon`, 1 Hz on `j_lon`) in `components.py` |
-| P2 | `speed` | OSM speed limit uniform 30 mph fallback | **IMPROVED** — 59 corridors populated in `speed_limits.yaml`; raw 1.0 → 0.954 |
-| P3 | `deviation` / `lane_change` | Arc-length mismatch between fused positions and `reference_path` | **OPEN** — requires nearest-point projection in scoring pipeline |
+| P2 | `speed` | OSM speed limit uniform 30 mph fallback | **FIXED** — 59 corridors in `speed_limits.yaml` + KDTree projection; raw 1.0 → 0.759 |
+| P3 | `deviation` / `lane_change` | Arc-length coordinate mismatch | **FIXED** — KDTree nearest-point projection in `speed_penalty()` + `deviation_penalty()` |
+| P4 | `deviation` / `lane_change` | EKF position drift (median 4.5 m, max 46 m from centerline) | **OPEN** — requires GPS position fusion in EKF state update |
 
 ## Remaining Issues
 
-### `deviation` and `lane_change` still saturated
+### `deviation` and `lane_change` still saturated — EKF position drift
 
-Both use arc-length-based interpolation from `reference_path`:
+`cKDTree` nearest-point projection is in place, but `deviation` raw remains 1.000 because
+the EKF positions themselves are drifted far from the road centerline:
 
-```python
-s_fused   = cumulative_arc_length(px_fused, py_fused)   # 0 .. 14,398 m
-v_limit   = np.interp(s_fused, ref_s, ref_vl)           # ref_s: 0 .. 13,850 m
+```
+nearest-point distance (fused_ekf → reference_path):
+  median = 4.5 m,  p90 = 29.7 m,  max = 46.2 m
+  mean_excess (inlane threshold = 1.5 m) = 7.2 m
+  penalty = clip(7.2 / 3.0, 0, 1) = 1.000  (always saturated)
 ```
 
-`s_fused` (14,398 m) > `ref_s` (13,850 m): the fused arc-length exceeds the reference
-path length by 548 m. Values beyond `ref_s[-1]` are clamped to the last reference point,
-misassigning positions near the trip end to the wrong road segment.
+The EKF never corrects its position — the state vector receives speed and heading from
+GPS but not the `(lat, lon)` position fix itself. Accumulated IMU integration error
+over a 20-minute trip exceeds 46 m.
 
-More fundamentally, the arc-length coordinate systems differ: `s_fused` is computed
-from the (potentially drifting) EKF positions, while `ref_s` is from the OSM-matched
-centerline. Unless both start and end at exactly the same locations with no drift,
-the mapping will be systematically off.
-
-**Proper fix**: replace arc-length interpolation with nearest-point projection
-(find the closest `reference_path` row to each fused `(px_m, py_m)` in 2D) in
-`speed_penalty()`, `deviation_penalty()`, and `lane_change_penalty()`.
+**Required fix**: add a GPS position measurement update to the EKF so that each ~1 Hz
+GPS fix collapses the position uncertainty. This is a P2-layer (EKF) change; the
+scoring pipeline is correct after the KDTree fix.
