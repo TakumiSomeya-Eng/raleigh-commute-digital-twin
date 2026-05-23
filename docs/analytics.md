@@ -13,16 +13,17 @@ Command: `PYTHONPATH=src py -3.10 -m scoring score --trace day2 --filter ekf --o
 | After jerk LPF fix | 53.4 | **0.353** | 1.000 | 1.000 | double-LPF on `components.py` |
 | After OSM speed limits | 54.4 | 0.353 | **0.954** | 1.000 | 59 corridors in `speed_limits.yaml` |
 | After KDTree projection | **58.3** | 0.353 | **0.759** | 1.000 | nearest-point replaces arc-length |
+| After T3.5 adaptive gate | 57.8 | **0.345** | 0.783 | 1.000 | pure-Python EKF; divergence loop fixed; `deviation` still saturated (see below) |
 
 Current result:
 
 | Field | Value |
 |---|---|
-| `score_0_100` | **58.3 / 100** |
+| `score_0_100` | **57.8 / 100** |
 | `suggested_tip_band` | 0–59 ("Poor") |
 | `suggested_tip_pct` | 10% |
 | `fused_source` | ekf |
-| `aggregate_raw` | 0.4174 |
+| `aggregate_raw` | 0.4218 |
 
 ---
 
@@ -30,12 +31,12 @@ Current result:
 
 | Component | raw | weight | weighted | Status |
 |---|---|---|---|---|
-| `jerk` | 0.353 | 0.30 | 0.106 | Fixed (was 1.000) |
+| `jerk` | 0.345 | 0.30 | 0.104 | Fixed (was 1.000); improved after smoother EKF |
 | `harsh_brake` | 0.000 | 0.20 | 0.000 | OK |
-| `lat_accel` | 0.065 | 0.15 | 0.010 | OK |
-| `speed` | 0.759 | 0.20 | 0.152 | Improved (was 1.000) |
-| `deviation` | 1.000 | 0.10 | 0.100 | **SATURATED — EKF drift** |
-| `lane_change` | 1.000 | 0.05 | 0.050 | **SATURATED — genuine events** |
+| `lat_accel` | 0.078 | 0.15 | 0.012 | OK |
+| `speed` | 0.783 | 0.20 | 0.157 | Improved (was 1.000); slight increase vs arc-length run due to accurate road segment lookup |
+| `deviation` | 1.000 | 0.10 | 0.100 | **SATURATED — reference_path / GPS accuracy** (see T3.6) |
+| `lane_change` | 1.000 | 0.05 | 0.050 | **SATURATED — EKF noise + genuine events** |
 
 ---
 
@@ -165,59 +166,62 @@ is close to the ideal profile.
 | P1 | `jerk` | Double-diff of noisy EKF velocity | **FIXED** — double LPF (3 Hz on `a_lon`, 1 Hz on `j_lon`) in `components.py` |
 | P2 | `speed` | OSM speed limit uniform 30 mph fallback | **FIXED** — 59 corridors in `speed_limits.yaml` + KDTree projection; raw 1.0 → 0.759 |
 | P3 | `deviation` / `lane_change` | Arc-length coordinate mismatch | **FIXED** — KDTree nearest-point projection in `speed_penalty()` + `deviation_penalty()` |
-| P4 | `deviation` / `lane_change` | EKF divergence loop at minute 12 (chi2 gate rejects valid GPS once P is tight) | **FIXED** — adaptive gate bypass in `ekf_node.cpp`; score rerun pending |
+| P4 | `deviation` / `lane_change` | EKF divergence loop at minute 12 | **FIXED** — adaptive gate bypass in `ekf_node.cpp` + pure-Python EKF (`scripts/py_ekf.py`) |
+| P5 | `deviation` | Reference_path direction mismatch on divided highway at min 3–4 | **OPEN** — backlogged as **T3.6** |
 
 ## Remaining Issues
 
-### `deviation` and `lane_change` still saturated — EKF position drift
+### `deviation` — OPEN: reference_path alignment + GPS/OSM accuracy floor
 
-`cKDTree` nearest-point projection is in place, but `deviation` raw remains 1.000 because
-the EKF positions themselves are drifted far from the road centerline:
-
-```
-nearest-point distance (fused_ekf → reference_path):
-  median = 4.5 m,  p90 = 29.7 m,  max = 46.2 m
-  mean_excess (inlane threshold = 1.5 m) = 7.2 m
-  penalty = clip(7.2 / 3.0, 0, 1) = 1.000  (always saturated)
-```
-
-The EKF never corrects its position — the state vector receives speed and heading from
-GPS but not the `(lat, lon)` position fix itself. Accumulated IMU integration error
-over a 20-minute trip exceeds 46 m.
-
-**Root cause candidates** (verified):
-
-| ID | Hypothesis | Result |
-|---|---|---|
-| H1 | `position_covariance[0] = 0` → R = 0 → gate rejects all GPS | **DISPROVED** — `bag_bridge/_cdr.py` correctly writes `hacc_m²`; `R_pos_trace > 0` |
-| H2 | `/gps/fix` topic absent or wrong name | **DISPROVED** — topic present, 9 199 messages at 10.34 Hz |
-| H3 | chi2 gate divergence loop at end of trip | **CONFIRMED — root cause** (see below) |
-
-**Confirmed root cause — divergence loop at minute 12:**
+**EKF divergence loop (T3.5) is fixed.** After re-running with the adaptive gate
+(`scripts/py_ekf.py`), the per-minute distance from centerline is now:
 
 ```
-EKF P(px,px) per-minute:
-  min 11–12:  sqrt = 0.49 m   (tight — long clean tracking on I-440)
-  min 12–13:  sqrt = 4.02 m   (diverging — vehicle decelerates at highway exit)
-  min 13–14:  sqrt = 11.26 m  (diverged)
-  min 14–15:  sqrt = 11.69 m  (still diverged)
-
-GPS distance from road at min 12–13: median 2.5 m, max 7.8 m  (GPS correct)
-EKF distance from road at min 12–13: median 37.5 m              (EKF drifted)
-Innovation: ~35 m,  S = P(px)+R ≈ 0.49 + 4.2 = 4.69
-d² = 35² / 4.69 = 261  >>  chi2 threshold 9.21  → REJECTED
+post-T3.5 EKF → reference_path:
+  Overall:     median = 4.66 m,  p90 = 12.78 m,  mean_excess = 7.0 m
+  min  3–4:    median = 61.4 m   (reference_path direction mismatch — see below)
+  min  5–11:   median = 2.1–5.0 m  (tracking correct)
+  min 12–15:   median = 3.7–6.4 m  (divergence loop FIXED; was 37.5 m)
 ```
 
-The CTRV model predicts straight constant-speed motion while the vehicle actually decelerates
-at the highway exit.  One large residual causes tight P → large d² → rejection.  Without
-GPS corrections, P grows from IMU process noise and subsequent innovations remain above the
-gate → spiral.
+`deviation` raw is still 1.000 because `mean_excess = 7.0 m >> sat_m = 3.0 m`.
 
-**Fix** (`src/localization/src/ekf_node.cpp`): Refresh `DiagnosticsState::health` at each GPS
-callback (not only at the 1 Hz diagnostics timer).  When `health != OK`, bypass the chi2 gate
-so GPS measurements can re-converge the position estimate.  During healthy operation (minutes
-0–11) the gate remains active and still correctly rejects genuine multipath at minute 3–4
-(64.5 m raw GPS error).  The `DEGRADED` threshold triggers within ~0.5 s of sustained rejection,
-so the loop is broken quickly.
+**Root cause 1 — reference_path direction mismatch at minute 3–4 (T3.6):**
 
-**Fix**: see **T3.5** in `docs/DEV_PLAN.md` — expected to bring `score_0_100` ≥ 70.
+```
+GPS at min 3–4:  (35.7940–35.7950 N,  −78.6411 to −78.6412 E)
+Reference path:  (35.7935–35.7950 N,  −78.6402 to −78.6404 E)
+Offset:          ~85 m consistently WEST of reference
+GPS hacc:        1.5–2.1 m  (GPS self-reports accurate)
+```
+
+The vehicle was on the **northbound** lanes of a divided arterial (Capital Boulevard /
+US-1) while Valhalla map-matched the reference_path to the **southbound** lanes, or
+vice versa.  Median GPS distance to reference = 64.5 m across the full minute.
+EKF correctly follows GPS to that offset → deviation penalty saturated by this alone.
+
+**Root cause 2 — GPS + OSM accuracy floor:**
+
+Even excluding minute 3–4, mean_excess = 4.3 m (penalty = 1.44 × sat → still saturated).
+With GPS hacc = 1.5–2 m and OSM centerline accuracy = 2–5 m, the inherent EKF-to-reference
+distance floor is ~3–6 m.  Reducing `deviation` below 1.0 requires either:
+
+- Correcting the reference_path direction at min 3–4 (T3.6) — removes the 7 m/trip
+  contribution from that segment
+- Tightening GPS noise through better sensor fusion (cm-level positioning)
+
+**Score-for-≥70 analysis (post-T3.5):**
+
+```
+Base aggregate (jerk+harsh_brake+lat+speed): 0.272
+For score=70: need deviation×0.1 + lane_change×0.05 ≤ 0.028
+  → if lane_change=0: deviation ≤ 0.28  (mean_excess ≤ 0.85 m)
+  → currently (excl min 3–4): mean_excess = 4.3 m  (5× too high)
+```
+
+Fixing the reference_path direction mismatch at minute 3–4 would eliminate ~3.0 m from
+mean_excess (contribution: 64m excess × 60s / 889s ≈ 4.3 m).  After that fix,
+mean_excess ≈ 4.3 – 4.3 = effectively the GPS/OSM floor.  Score ≥ 70 then requires
+addressing the GPS/OSM accuracy gap.
+
+**Fix**: see **T3.6** in `docs/DEV_PLAN.md`.

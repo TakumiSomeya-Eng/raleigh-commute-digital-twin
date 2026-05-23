@@ -559,6 +559,34 @@ the 64.5 m multipath spike at minute 3–4.
 
 ---
 
+### T3.6 — Reference_path direction fix for divided-highway segment
+
+**Background**: After T3.5, `deviation` raw remains 1.000. The EKF correctly tracks GPS,
+but the GPS is consistently ~85 m west of the reference_path at minute 3–4 because Valhalla
+map-matched that segment to the wrong direction of a divided arterial (northbound vs.
+southbound, or vice versa).
+
+- **Covers:** FR-9.3 (`reference_path.parquet` accuracy)
+- **Root cause**: Valhalla route matching placed the reference on the opposing side of
+  Capital Boulevard / US-1 (≈ 85 m offset at lat 35.79 N, lon −78.641 E).
+
+```
+GPS at min 3–4:   lat=35.7940–35.7950, lon=−78.641  (hacc=1.5–2 m, GPS correct)
+Reference path:   lat=35.7935–35.7950, lon=−78.640  (85 m east = wrong side)
+Contribution to mean_excess: 64 m × 60 s / 889 s ≈ 4.3 m  (saturates deviation alone)
+```
+
+- **DoD:**
+  - [ ] Re-run Valhalla matching with `costing="auto"` and check heading filter so
+    northbound / southbound are not confused.  Alternatively inspect `route_matched.parquet`
+    to identify the offending OSM way IDs and manually correct the segment direction.
+  - [ ] Verify: GPS distance to new reference_path at min 3–4 drops below 10 m.
+  - [ ] Re-run scoring: `deviation` raw ≤ 0.50, `score_0_100` improves toward 65.
+
+- **Est.:** 1–2 h (re-route + verify)
+
+---
+
 ## 7. Phase P4 — Ideal driver + scoring
 
 Ends with: `make score TRACE=day2` produces a valid `score.json`.
