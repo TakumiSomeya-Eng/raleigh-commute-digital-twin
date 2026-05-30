@@ -14,8 +14,8 @@
 |---|---|---|
 | Value | ✅ 承認済み | 2026-05-30 |
 | Behavior | ✅ 承認済み | 2026-05-30 |
-| Domain | 🔲 検証待ち | — |
-| Interaction | 🔲 検証待ち | — |
+| Domain | ✅ 承認済み | 2026-05-30 |
+| Interaction | ✅ 承認済み | 2026-05-30 |
 | Implementation | 🔲 検証待ち | — |
 
 **Phase 2 MVP 開始ゲート**: Value〜Interaction の4層が ✅ になってから実装開始
@@ -84,7 +84,7 @@ PRD Success Criterion S4（Spearman ρ ≥ 0.6）の検証が現実的な労力�
 
 ## Domain Hypothesis
 
-**状態**: 🔲 未検証（Value/Behavior承認後に作業）
+**状態**: ✅ 承認済み（2026-05-30）
 
 ### Domain Entities
 *（`.claude/prompts/2_domain_and_interaction.md` 参照）*
@@ -92,32 +92,38 @@ PRD Success Criterion S4（Spearman ρ ≥ 0.6）の検証が現実的な労力�
 ### Business Rules
 | ID | ルール | 状態 |
 |---|---|---|
-| BR-1 | score.jsonはPhase 1と同一スキーマ（TRD §1.8） | 定義済み |
-| BR-2 | 処理中のトリップは上書きを受け付けない | 定義済み |
-| BR-3 | RawファイルはImmutable（S3 versioning） | 定義済み |
-| BR-4 | コスト上限$50/monthを超えた場合、新規処理を停止 | 定義済み |
-| BR-5 | スコアリング結果には必ずconfig_hashが含まれる | 定義済み |
+| BR-1 | score.jsonはPhase 1と同一スキーマ（TRD §1.8） | ✅ 承認 |
+| BR-2 | 処理中のトリップは上書きを受け付けない | ✅ 承認 |
+| BR-3 | RawファイルはImmutable（S3 versioning） | ✅ 承認 |
+| BR-4 | コスト上限$50/monthを超えた場合、新規処理を停止してメール警告 | ✅ 承認 |
+| BR-5 | スコアリング結果には必ずconfig_hashが含まれる | ✅ 承認 |
 
 ### Evidence
-*（検証後に記入）*
+- BR-1〜5すべてユーザー承認済み（2026-05-30セッション）
 
 ---
 
 ## Interaction Hypothesis
 
-**状態**: 🔲 未検証（Domain承認後に作業）
+**状態**: ✅ 承認済み（2026-05-30）
 
-### Proposed Solution
+### Confirmed Solution
 ```
-S3 PutObject Event → EventBridge → Step Functions 自動起動
+① スマホ → AWSコンソール（モバイルブラウザ） → S3アップロード
+② S3 PutObject Event → EventBridge → Step Functions 自動起動
+③ ingest → fuse → ideal → score → report（Fargate）
+④-a 完了: スコア + report.htmlリンク + tip提案 をメール（SNS + SES）
+④-b 失敗: 失敗ステップ名 + エラー内容 をメール（SNS + SES）
 ```
 
-### Open Questions
-- [ ] OQ-1: 全7ファイルのアップロード完了をどう検出するか？
-- [ ] OQ-2: 処理失敗時のリトライポリシーをどうするか？
+### Open Questions（解決済み）
+- [x] OQ-1: 全7ファイルの検出 → Step Functions内でS3 ListObjects → ファイル数チェック → 不足なら Wait+Retry
+- [x] OQ-2: リトライポリシー → Step Functions標準（指数バックオフ、最大3回）+ 失敗時メール通知
 
 ### Evidence
-*（検証後に記入）*
+- 失敗通知方式: メール（SNS）をユーザーが選択
+- メール内容: スコア + リンク + エラー内容（Option C）をユーザーが選択
+- 追加実装: SNS + SES で 1〜2h、コスト月数円
 
 ---
 
@@ -166,6 +172,13 @@ S3 PutObject Event → EventBridge → Step Functions 自動起動
 - **Impact**: AC-MVP-3の基準値として使用（許容誤差±2）
 
 
+
+### VL-5: 失敗通知 = SNSメール（スコア + リンク + エラー内容）で確定（2026-05-30）
+
+- **Observation**: 失敗に気づかないとS4検証でデータ不足になるリスクあり → メール通知が最適
+- **Source**: Domain/Interaction仮説セッション（2026-05-30）
+- **Impact**: SNS + SES をStep Functionsに追加。追加工数 1〜2h、コスト月数円
+
 ### VL-4: アップロード手段 = AWSコンソール（モバイルブラウザ）で確定（2026-05-30）
 
 - **Observation**: 「後回しにしそう」→ 乗車直後スマホ完結が必須。AWSコンソールのモバイルブラウザでアップロード
@@ -197,3 +210,4 @@ S3 PutObject Event → EventBridge → Step Functions 自動起動
 |---|---|---|
 | 0.1 | 2026-05-30 | Phase 2プランニング開始。VL-1〜3を記録。全仮説層を「未検証」で初期化 |
 | 0.2 | 2026-05-30 | Value/Behavior仮説承認。VL-4追加。アップロード手段確定 |
+| 0.3 | 2026-05-30 | Domain/Interaction仮説承認。VL-5追加。通知方式確定 |
