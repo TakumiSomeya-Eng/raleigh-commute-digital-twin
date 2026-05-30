@@ -12,8 +12,8 @@
 
 | 仮説層 | 状態 | 最終更新 |
 |---|---|---|
-| Value | 🔲 検証待ち | — |
-| Behavior | 🔲 検証待ち | — |
+| Value | ✅ 承認済み | 2026-05-30 |
+| Behavior | ✅ 承認済み | 2026-05-30 |
 | Domain | 🔲 検証待ち | — |
 | Interaction | 🔲 検証待ち | — |
 | Implementation | 🔲 検証待ち | — |
@@ -24,7 +24,7 @@
 
 ## Value Hypothesis
 
-**状態**: 🔲 未検証
+**状態**: ✅ 承認済み（2026-05-30）
 
 ### The Claim
 Phase 1のローカルパイプラインをAWS化することで、
@@ -33,37 +33,39 @@ PRD Success Criterion S4（Spearman ρ ≥ 0.6）の検証が現実的な労力�
 
 ### Acceptance Criteria
 - [ ] AC-V1: 月$50以下のAWS費用で動作すること
-- [ ] AC-V2: 新しいトリップの処理に必要なユーザー操作が「ファイルアップロードのみ」であること
+- [x] AC-V2: 新しいトリップの処理に必要なユーザー操作が「ファイルアップロードのみ」であること
 - [ ] AC-V3: 8トリップのバッチ処理が手動操作なしで完了すること
 - [ ] AC-V4: Phase 1と同じ `score.json` が出力されること
 
 ### Options
 | | オプション | 状態 |
 |---|---|---|
-| A | フルAWS（EKS + Step Functions + Fargate） | 候補 |
-| B | ミニマルAWS（Lambda + S3 trigger、ROS 2なし） | 候補 |
-| C | スケジュール実行（EC2 spot + cron） | 候補 |
+| A | フルAWS（EKS + Step Functions + Fargate） | ✅ 採用（MVP = EKSなし） |
+| B | ミニマルAWS（Lambda + S3 trigger、ROS 2なし） | ❌ 除外（py_ekf.py必要） |
+| C | スケジュール実行（EC2 spot + cron） | ❌ 除外（自動トリガー不可） |
 
 ### Evidence
-*（検証後に記入）*
+- ユーザー（Takumi）が「後回しにしそう」と明言 → 乗車直後スマホ完結が必須
+- アップロード追加実装ゼロ（AWSコンソール モバイルブラウザで対応）
 
 ---
 
 ## Behavior Hypothesis
 
-**状態**: 🔲 未検証
+**状態**: ✅ 承認済み（2026-05-30）
 
 ### User Action
 ```
 1. Uber乗車中: Sensor Logger を起動（変わらない）
-2. 乗車後: CSVフォルダをS3にアップロード
-3. 自動処理完了後: report.html + score.json を確認
-4. チップ決定: 手動（ツールは提案のみ）
+2. 乗車直後: スマホのAWSコンソール（モバイルブラウザ）からS3にCSVをアップロード
+3. 自動処理（15分待つだけ、操作不要）
+4. report.html確認 → チップ決定（手動）
 ```
 
 ### Desired Interaction Model
 ```
-"アップロードするだけ → あとは自動"
+"スマホから30秒でアップロード → あとは自動"
+手段:  AWSコンソール（モバイルブラウザ）
 入力:  s3://rct-data/raw/{trip_id}/ への CSV アップロード
 出力:  s3://rct-data/reports/{trip_id}/report.html
 ```
@@ -74,7 +76,9 @@ PRD Success Criterion S4（Spearman ρ ≥ 0.6）の検証が現実的な労力�
 - [ ] BA-3: スマホからS3操作するUIが必要か？（Phase 1スコープ外）
 
 ### Evidence
-*（検証後に記入）*
+- 「後回しにしそう」→ 乗車直後・スマホ完結が摩擦最小化に必須
+- AWSコンソール モバイルブラウザ = 追加実装ゼロ・即実現可能
+- Sensor LoggerのCSVはスマホ内に保存されるため、スマホから直接アップロードが自然
 
 ---
 
@@ -161,6 +165,13 @@ S3 PutObject Event → EventBridge → Step Functions 自動起動
 - **Source**: docs/screenshots/report_day2.html
 - **Impact**: AC-MVP-3の基準値として使用（許容誤差±2）
 
+
+### VL-4: アップロード手段 = AWSコンソール（モバイルブラウザ）で確定（2026-05-30）
+
+- **Observation**: 「後回しにしそう」→ 乗車直後スマホ完結が必須。AWSコンソールのモバイルブラウザでアップロード
+- **Source**: Value/Behavior仮説セッション（2026-05-30）
+- **Impact**: スマホアプリ開発不要（+20〜40h節約）。AC-V2確定
+
 ---
 
 ## Phase 2 タスクリスト（実装仮説承認後に有効化）
@@ -185,3 +196,4 @@ S3 PutObject Event → EventBridge → Step Functions 自動起動
 | バージョン | 日付 | 変更内容 |
 |---|---|---|
 | 0.1 | 2026-05-30 | Phase 2プランニング開始。VL-1〜3を記録。全仮説層を「未検証」で初期化 |
+| 0.2 | 2026-05-30 | Value/Behavior仮説承認。VL-4追加。アップロード手段確定 |
