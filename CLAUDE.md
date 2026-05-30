@@ -9,24 +9,57 @@
 Sensor Logger（iPhone）で記録したUber乗車データをEKF/UKFで融合し、
 「理想ドライバーと比較して運転手を採点・チップ提案する」ツール。
 
-- **ドキュメント**: `Docs/PRD.md` / `Docs/FRD.md` / `Docs/TRD.md` / `Docs/DEV_PLAN.md`
-- **37タスク / 6フェーズ**: P0（基盤）→ P1（データ）→ P2（融合）→ P3（評価）→ P4（理想）→ P5（レポート）
-- **現在地**: P5完了（全37タスク完了・T5.3 harsh-brake LPF/統一リファクタ済み）（2026-05-22時点）
+- **ドキュメント**: `docs/PRD.md` / `docs/FRD.md` / `docs/TRD.md` / `docs/DEV_PLAN.md`
+- **Phase 1**: 37タスク / 6フェーズ — **全完了** ✅ (2026-05-22時点)
+- **Phase 2**: AWS デプロイ（EKS + Step Functions）— **現在地** 🚧
+- **現在の作業**: Phase 2 プランニング中（Hypothesis-Driven Frameworkで設計中）
 
 ---
 
-## 並列Track体制
+## 開発プロセス（必読）
+
+このプロジェクトは **Hypothesis Hierarchy Model** に従う。
+すべての実装は必ず以下の順序で進める：
+
+```
+Value → Behavior → Domain → Interaction → Implementation
+```
+
+**エージェントへの強制制約:**
+- Implementation層の作業開始前に、上位4層のRecapを必ずPR本文またはコメントに記載すること
+- 上位層が未確認の場合、コード生成を行わず `.claude/prompts/1_value_and_behavior.md` を参照し、仮説定義を先に促すこと
+- 「実装できるから作る」思考禁止。各アーキテクチャ選択には必ずEvidence（根拠）を添えること
+
+**Living Docs**: `docs/LIVING_SPEC.md` を常に最新に保つこと
+
+---
+
+## マルチエージェント体制（Phase 2）
+
+| エージェント | 役割 | 使用スキル |
+|---|---|---|
+| **Orchestrator** | 仮説検証のゲートキーパー、タスク分解、PR調整 | CLAUDE.md全体 + hypothesis prompts |
+| **Infra Agent** | EKS/ECR/IAM/VPC のTerraform実装 | `.claude/skills/aws-infra.md` + `.claude/skills/docker-ops.md` |
+| **Pipeline Agent** | Step Functions定義、Lambda/Fargate実装、S3スキーマ | `.claude/skills/aws-infra.md` + `.claude/skills/sensor-fusion.md` |
+| **QA Agent** | テスト追加、RMSE回帰チェック、CI/CD設定 | `.claude/skills/pipeline-testing.md` |
+
+**ルール:**
+- Infra/Pipeline Agentは、OrchestratorがValue/Behavior/Domain仮説を確認するまでコードを生成しない
+- QA AgentはPhase 4（`docs/LIVING_SPEC.md` 更新）の役割を担う
+- サブエージェント完了後、メインセッションがコミット（権限の都合）
+
+---
+
+## 並列Track体制（Phase 1踏襲）
 
 | Track | 言語 | 現在のタスク | 担当 |
 |---|---|---|---|
-| **Track A** | Python (`src/data_engine/`) | T1.4 → T1.5 → T1.6 | メインセッション |
-| **Track B** | C++ (`src/localization/`) | T2.4 → T2.5 … | サブエージェント |
+| **Track A** | Python (`src/`, `infra/`) | Phase 2 実装 | メインセッション |
+| **Track B** | Terraform (`infra/`) | インフラ定義 | Infra Agent |
 
 **ルール:**
-
-- Python と C++ ファイルは必ず別コミットに分ける（staging混線防止）
-- サブエージェント完了後、メインセッションがコミット（権限の都合）
-- T2.4以降はT2.1（Parquet→MCAP）待ち → T2.1はT1.3完了で解禁済み
+- Python と Terraform ファイルは必ず別コミットに分ける（staging混線防止）
+- サブエージェント完了後、メインセッションがコミット
 
 ---
 
@@ -35,11 +68,12 @@ Sensor Logger（iPhone）で記録したUber乗車データをEKF/UKFで融合�
 ```
 {task_id}: {imperative verb} {object}
 
-例: T1.3: implement CSV ingestion, clock alignment, and Parquet output
+例: T6.1: add S3 bucket Terraform module with versioning and lifecycle rules
 ```
 
 - 末尾に必ず: `Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>`
 - HEREDOCで渡す（改行・特殊文字を確実にエスケープするため）
+- Phase 2のタスクIDは `T6.x`〜`T11.x` を使用（Phase 1の37タスクの続き）
 
 ---
 
@@ -69,6 +103,12 @@ Sensor Logger（iPhone）で記録したUber乗車データをEKF/UKFで融合�
 
 - yamllint を remote hookで動かすと CP932 エラー（日本語Windowsの文字コード問題）
 - 解決策: `.pre-commit-config.yaml` で `local hook` + `python -X utf8 -m yamllint` を使用
+
+### AWSクレデンシャル
+
+- **絶対禁止**: コードやコミット履歴にAWSクレデンシャルを含めない
+- GitHub ActionsはOIDCで認証（long-lived keysはGitHub Secretsにも置かない）
+- ローカル開発は `aws sso login` または環境変数（.gitignore済みの`.env`）
 
 ---
 
@@ -152,6 +192,24 @@ flat-earth / equirectangular 近似。回廊スパン < 10 km で有効（TRD §
 | P0 | make bootstrap && make test が通る | ✅ |
 | P1 | KS-test が 80% 以上のチャネルで通過 | ✅ (T1.6完了) |
 | P2 | EKF/UKF がday2.mcapに対してクラッシュしない | ✅ (EKF 8.9MB / UKF 7.9MB Parquet確認) |
-| P3 | EKF RMSE ≤ 0.75 × GPS-only RMSE | 未着手 |
-| P4 | score.json が day2 に対して出力される | 未着手 |
-| P5 | docker compose からreport.htmlが30分以内に生成 | 未着手 |
+| P3 | EKF RMSE ≤ 0.75 × GPS-only RMSE | ✅ (T3.5〜T3.7で修正済み) |
+| P4 | score.json が day2 に対して出力される | ✅ |
+| P5 | docker compose からreport.htmlが30分以内に生成 | ✅ |
+| **Phase 2** | **AWSデプロイ完了・E2E smoke eval green** | 🚧 計画中 |
+
+---
+
+## Phase 2 概要（詳細は `docs/LIVING_SPEC.md` を参照）
+
+**ゴール**: Phase 1のローカルパイプラインをAWSで再現し、複数トリップの自動処理・蓄積・比較を可能にする。
+
+**設計デフォルト（仮説段階 — `docs/LIVING_SPEC.md` で検証中）:**
+- Python jobs: ECS Fargate
+- ROS 2 fusion: EKS (EC2 t3.medium)
+- Orchestration: Step Functions
+- Storage: S3（プレフィックス設計はFRD FR-12.1参照）
+- Cost ceiling: $50/month steady state、$10/eval-run
+
+**IaC**: Terraform（`infra/` 以下に実装）
+
+**参照**: `docs/FRD.md` §FR-12、`infra/README.md`
