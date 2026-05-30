@@ -13,7 +13,7 @@ terraform {
   # Remote state backend. Create the tfstate bucket once, manually, before
   # the first `terraform init` (chicken-and-egg). See infra/README.md.
   backend "s3" {
-    bucket = "rct-tfstate-CHANGEME"
+    bucket = "rct-tfstate-takumi2026"
     key    = "dev/terraform.tfstate"
     region = "us-east-1"
   }
