@@ -98,7 +98,7 @@ terraform apply
 
 | TaskID | 内容 | 状態 |
 |---|---|---|
-| T6.1 | S3 bucket + prefix layout (FR-12.1) | 🚧 実装完了・検証待ち |
+| T6.1 | S3 bucket + prefix layout (FR-12.1) | ✅ 完了（apply済み） |
 | T6.2 | ECR repositories x2 (FR-12.2) | ⬜ |
 | T6.3 | IAM roles (FR-12.7) | ⬜ |
 | T6.4 | ECS Fargate cluster + task definitions | ⬜ |

@@ -174,6 +174,13 @@ PRD Success Criterion S4（Spearman ρ ≥ 0.6）の検証が現実的な労力�
 
 
 
+
+### VL-6: T6.1 S3バケット apply 成功（2026-05-30）
+
+- **Observation**: `rct-data-takumi2026` を Terraform apply で作成成功（6リソース、0 changed/destroyed）。terraform plan で No changes 確認（冪等性OK）
+- **Source**: terraform apply 実行ログ（2026-05-30）
+- **Impact**: Phase 2インフラの土台完成。次タスクT6.2（ECR）の前提が整った
+
 ### VL-5: 失敗通知 = SNSメール（スコア + リンク + エラー内容）で確定（2026-05-30）
 
 - **Observation**: 失敗に気づかないとS4検証でデータ不足になるリスクあり → メール通知が最適
@@ -192,7 +199,7 @@ PRD Success Criterion S4（Spearman ρ ≥ 0.6）の検証が現実的な労力�
 
 | TaskID | 内容 | 状態 |
 |---|---|---|
-| T6.1 | S3 bucket + prefix layout (FR-12.1) | 🚧 実装中 |
+| T6.1 | S3 bucket + prefix layout (FR-12.1) | ✅ 完了（apply済み 2026-05-30） |
 | T6.2 | ECR repositories x2 (FR-12.2) | 🔲 |
 | T6.3 | IAM roles (FR-12.7) | 🔲 |
 | T6.4 | ECS Fargate cluster + task definitions | 🔲 |
@@ -213,3 +220,4 @@ PRD Success Criterion S4（Spearman ρ ≥ 0.6）の検証が現実的な労力�
 | 0.2 | 2026-05-30 | Value/Behavior仮説承認。VL-4追加。アップロード手段確定 |
 | 0.3 | 2026-05-30 | Domain/Interaction仮説承認。VL-5追加。通知方式確定 |
 | 0.4 | 2026-05-30 | Implementation仮説承認。全5層完了。MVP実装ゲート解除。T6.1開始 |
+| 0.5 | 2026-05-30 | T6.1完了（S3バケットapply成功）。VL-6追加 |
