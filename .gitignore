@@ -59,3 +59,17 @@ docker/valhalla/file_hashes.txt
 docker/valhalla/duplicateways.txt
 docker/valhalla/*.pbf
 docker/valhalla/*.osm
+
+# Terraform (Phase 2)
+**/.terraform/*
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.tfvars.example
+.terraform.lock.hcl
+crash.log
+crash.*.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json

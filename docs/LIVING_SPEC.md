@@ -16,9 +16,9 @@
 | Behavior | ✅ 承認済み | 2026-05-30 |
 | Domain | ✅ 承認済み | 2026-05-30 |
 | Interaction | ✅ 承認済み | 2026-05-30 |
-| Implementation | 🔲 検証待ち | — |
+| Implementation | ✅ 承認済み | 2026-05-30 |
 
-**Phase 2 MVP 開始ゲート**: Value〜Interaction の4層が ✅ になってから実装開始
+**Phase 2 MVP 開始ゲート**: ✅ 解除済み（全5層承認、2026-05-30）— T6.1から実装開始
 
 ---
 
@@ -129,16 +129,17 @@ PRD Success Criterion S4（Spearman ρ ≥ 0.6）の検証が現実的な労力�
 
 ## Implementation Hypothesis
 
-**状態**: 🔲 未検証（Interaction承認後に作業）
+**状態**: ✅ 承認済み（2026-05-30）
 
 ### Architecture Decisions
 | コンポーネント | 選択（仮） | 確定状態 |
 |---|---|---|
-| Python処理 | ECS Fargate | 🔲 仮説 |
-| ROS 2 EKF | EKS (EC2) / py_ekf.py fallback | 🔲 仮説 |
-| Orchestration | Step Functions Standard | 🔲 仮説 |
-| IaC | Terraform | 🔲 仮説 |
-| Auth | OIDC（GitHub Actions） | 🔲 仮説 |
+| Python処理 | ECS Fargate | ✅ 確定 |
+| EKF | py_ekf.py（EKSなし） | ✅ 確定（VL-1, VL-2） |
+| Orchestration | Step Functions Standard | ✅ 確定 |
+| 通知 | SNS + SES メール | ✅ 確定（VL-5） |
+| IaC | Terraform | ✅ 確定（ユーザー積極導入希望） |
+| Auth | OIDC（GitHub Actions） | ✅ 確定 |
 
 ### MVP Acceptance Criteria
 - [ ] AC-MVP-1: S3アップロードで処理が自動開始する
@@ -191,7 +192,7 @@ PRD Success Criterion S4（Spearman ρ ≥ 0.6）の検証が現実的な労力�
 
 | TaskID | 内容 | 状態 |
 |---|---|---|
-| T6.1 | S3 bucket + prefix layout (FR-12.1) | 🔲 |
+| T6.1 | S3 bucket + prefix layout (FR-12.1) | 🚧 実装中 |
 | T6.2 | ECR repositories x2 (FR-12.2) | 🔲 |
 | T6.3 | IAM roles (FR-12.7) | 🔲 |
 | T6.4 | ECS Fargate cluster + task definitions | 🔲 |
@@ -211,3 +212,4 @@ PRD Success Criterion S4（Spearman ρ ≥ 0.6）の検証が現実的な労力�
 | 0.1 | 2026-05-30 | Phase 2プランニング開始。VL-1〜3を記録。全仮説層を「未検証」で初期化 |
 | 0.2 | 2026-05-30 | Value/Behavior仮説承認。VL-4追加。アップロード手段確定 |
 | 0.3 | 2026-05-30 | Domain/Interaction仮説承認。VL-5追加。通知方式確定 |
+| 0.4 | 2026-05-30 | Implementation仮説承認。全5層完了。MVP実装ゲート解除。T6.1開始 |
