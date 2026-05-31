@@ -265,6 +265,21 @@ resource "aws_iam_role_policy" "stepfn" {
           "arn:aws:sns:${var.aws_region}:${var.aws_account_id}:rct-*"
         ]
       },
+      # EventBridge: runTask.sync creates managed rules automatically (AWS requirement).
+      {
+        Sid    = "EventBridgeManagedRules"
+        Effect = "Allow"
+        Action = [
+          "events:PutTargets",
+          "events:PutRule",
+          "events:DescribeRule",
+          "events:DeleteRule",
+          "events:RemoveTargets",
+        ]
+        Resource = [
+          "arn:aws:events:${var.aws_region}:${var.aws_account_id}:rule/StepFunctionsGetEventsForECSTaskRule",
+        ]
+      },
       # CloudWatch Logs: write Step Functions execution logs
       {
         Sid    = "CloudWatchLogs"
