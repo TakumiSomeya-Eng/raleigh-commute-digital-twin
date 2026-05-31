@@ -12,3 +12,8 @@ output "python_worker_repository_url" {
   description = "ECR URL for the python-worker image."
   value       = module.ecr.python_worker_repository_url
 }
+
+output "gha_role_arn" {
+  description = "GitHub Actions OIDC role ARN (paste into deploy.yaml)."
+  value       = module.iam.gha_role_arn
+}

@@ -1,4 +1,4 @@
 # Copy to terraform.tfvars and fill in. terraform.tfvars is gitignored.
-# bucket_suffix はデータバケット名 rct-data-{suffix} に使われる（全世界で一意であること）
-region        = "us-east-1"
-bucket_suffix = "takumi2026"
+region         = "us-east-1"
+bucket_suffix  = "takumi2026"
+aws_account_id = "REPLACE_WITH_YOUR_12_DIGIT_ACCOUNT_ID"

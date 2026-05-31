@@ -8,3 +8,8 @@ variable "bucket_suffix" {
   description = "Globally-unique suffix for the data bucket (e.g. your AWS account id)."
   type        = string
 }
+
+variable "aws_account_id" {
+  description = "12-digit AWS account ID."
+  type        = string
+}

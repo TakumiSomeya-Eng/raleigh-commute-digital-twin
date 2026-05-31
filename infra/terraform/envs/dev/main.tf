@@ -42,3 +42,13 @@ module "ecr" {
 
   env = "dev"
 }
+
+module "iam" {
+  source = "../../modules/iam"
+
+  env                = "dev"
+  data_bucket_arn    = module.s3.bucket_arn
+  ecr_repository_arn = module.ecr.python_worker_repository_arn
+  aws_account_id     = var.aws_account_id
+  aws_region         = var.region
+}
