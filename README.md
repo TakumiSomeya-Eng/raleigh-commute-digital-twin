@@ -8,7 +8,7 @@ fuse GPS + IMU with an Extended Kalman Filter, synthesise what an ideal driver
 would have done via [Valhalla](https://github.com/valhalla/valhalla) map-matching,
 and score the ride on six objective metrics — then suggest a tip.
 
-**Status:** Phase 1 complete (local pipeline). Phase 2 (AWS deployment) planned.
+**Status:** Phase 1 complete ✅ · Phase 2 infrastructure complete ✅ · Phase 2 E2E pending Docker image 🚧
 
 ---
 
@@ -22,6 +22,8 @@ them. This project makes the other side of that ledger visible to the rider.
 ---
 
 ## Architecture
+
+### Phase 1 — Local Pipeline
 
 ```
 iPhone (Sensor Logger)
@@ -53,9 +55,84 @@ iPhone (Sensor Logger)
                 ──►  out/reports/index.html    (sortable trip index)
 ```
 
+### Phase 2 — AWS Cloud Pipeline
+
+```
+iPhone (Sensor Logger)
+  └─ CSV export
+        │
+        ▼
+  S3: rct-data-takumi2026/raw/{trip_id}/      ← upload via AWS Console (mobile)
+        │  S3 PutObject event
+        ▼
+  EventBridge: rct-s3-raw-upload-dev
+        │
+        ▼
+  Step Functions: rct-pipeline-dev (Standard)
+        │
+        ├─ Fargate: ingest   (data_engine)          FR-1
+        ├─ Fargate: fuse     (py_ekf.py)             FR-4, VL-1
+        ├─ Fargate: ideal    (Valhalla)              FR-9
+        ├─ Fargate: score                            FR-10
+        └─ Fargate: report                           FR-11
+                │
+                ▼
+  SNS → Email: score + report.html link + error details
+```
+
+> **Why no EKS?** The EKS control plane costs $72/month, exceeding the $50/month
+> ceiling (VL-2). `py_ekf.py` achieves identical accuracy to the C++ EKF (VL-1),
+> so the MVP omits EKS entirely.
+
 ---
 
-## Quickstart — fresh clone to `report.html`
+## Development Process
+
+This project follows the **Hypothesis Hierarchy Model** — all implementation
+decisions trace back to a validated Value hypothesis. See `.claude/prompts/` for
+the full five-layer framework and Phase 2 hypothesis records.
+
+```
+Value → Behavior → Domain → Interaction → Implementation
+```
+
+Validated learnings are tracked in `docs/LIVING_SPEC.md`.
+
+---
+
+## Phase 2 Infrastructure (AWS) — Completed 2026-05-30
+
+All resources deployed to `us-east-1` via Terraform (`infra/terraform/`).
+
+| Module | Resource | Purpose |
+|---|---|---|
+| `s3` | `rct-data-takumi2026` | Pipeline data store (raw → processed → scores → reports) |
+| `ecr` | `rct/python-worker` | Docker image registry |
+| `iam` | `rct-gha-dev` | GitHub Actions OIDC (no long-lived keys) |
+| `iam` | `rct-fargate-task-dev` | ECS task S3 read/write |
+| `iam` | `rct-fargate-execution-dev` | ECS agent ECR pull + CloudWatch logs |
+| `iam` | `rct-stepfn-dev` | Step Functions ECS + SNS |
+| `ecs` | `rct-dev` cluster + 5 task defs | Fargate pipeline workers |
+| `stepfn` | `rct-pipeline-dev` | Orchestration state machine |
+| `stepfn` | `rct-notify-dev` SNS | Pipeline completion/failure email |
+| `eventbridge` | `rct-s3-raw-upload-dev` | S3 upload → Step Functions trigger |
+| `observability` | `rct-monthly-dev` budget | $50/month cost ceiling (BR-4) |
+
+**Cost at idle:** ~$0/month (no running containers, no EKS control plane).
+
+---
+
+## Phase 2 — Next Steps (T7.x)
+
+Before the E2E smoke test can pass, the Phase 1 Python code needs three changes:
+
+1. **S3 adapter** — replace local file paths with `boto3` S3 read/write
+2. **Docker build** — build `docker/python.Dockerfile` and push to ECR
+3. **E2E validation** — upload day2 CSVs to S3, assert `score.json` within ±2 of baseline 34.8
+
+---
+
+## Quickstart — Local Pipeline (Phase 1)
 
 ### Prerequisites
 
@@ -69,8 +146,8 @@ iPhone (Sensor Logger)
 ### 1 — Clone and install
 
 ```bash
-git clone https://github.com/takumi-ta/raleigh-commute-twin.git
-cd raleigh-commute-twin
+git clone https://github.com/TakumiSomeya-Eng/raleigh-commute-digital-twin.git
+cd raleigh-commute-digital-twin
 pip install -e ".[dev]"
 ```
 
@@ -90,18 +167,8 @@ Each folder must contain `Location.csv`, `Accelerometer.csv`, `Gyroscope.csv`,
 ### 3 — Run the full pipeline
 
 ```bash
-# Start Valhalla, run all stages, produce report.html
 ./scripts/run_full_pipeline.sh day2
 ```
-
-The script will:
-
-1. Start `docker compose up -d valhalla` and wait until healthy (≤ 5 min)
-2. Run every make stage with per-step timing
-3. Write `out/day2/report.html` and `out/reports/index.html`
-
-On first run Valhalla downloads the NC OSM extract (~350 MB) and builds
-routing tiles; subsequent runs skip the download automatically.
 
 Expected total time (including first-time Docker pull): **≤ 30 min**.
 
@@ -122,9 +189,6 @@ make bag     TRACE=day2              # Parquet → MCAP bag
 make fuse    TRACE=day2 FILTER=ekf   # EKF/UKF sensor fusion
 make eval    TRACE=day2 FILTER=ekf   # RMSE evaluation
 make ideal   TRACE=day2              # Valhalla map-match
-make ref     TRACE=day2              # road reference path
-make speed   TRACE=day2              # ideal speed profile
-make traj    TRACE=day2              # ideal trajectory synthesis
 make score   TRACE=day2              # score.json + tip lookup
 make report  TRACE=day2              # report.html + index.html
 make test                            # run all unit tests
@@ -157,22 +221,6 @@ Six components, each penalising deviations from a smooth, law-abiding ideal:
 | 60 – 74 | Fair | 15 % |
 | 45 – 59 | Poor | 10 % |
 | 0 – 44 | Unsafe | 0 % |
-
----
-
-## Subjective ratings
-
-Add your own 1–5 star ratings to `config/ratings.yaml` (gitignored):
-
-```yaml
-# trip_id: 1..5  (1 = terrible, 5 = excellent)
-day1: 4
-day2: 5
-```
-
-The index page computes **Spearman ρ** between tool scores and your ratings
-once ≥ 5 trips are rated, so you can validate whether the model agrees with
-your gut feel.
 
 ---
 
@@ -214,6 +262,7 @@ road-relative lane-change detection (T3.7).
 | [FRD](Docs/FRD.md) | 54 functional requirements across data, fusion, scoring, and reporting |
 | [TRD](Docs/TRD.md) | Schemas, interfaces, EKF/UKF math, NFRs, and toolchain decisions |
 | [Dev Plan](Docs/DEV_PLAN.md) | 37 tasks across 6 phases with DoD checklists and time estimates |
+| [Living Spec](docs/LIVING_SPEC.md) | Phase 2 hypothesis records and validated learnings (VL-1 – VL-8) |
 
 ---
 
@@ -227,7 +276,8 @@ road-relative lane-change detection (T3.7).
 | P3 | Filter evaluation — RMSE, NEES | 4 | ✅ Complete |
 | P4 | Ideal driver + scoring | 8 | ✅ Complete |
 | P5 | Reporting + Phase 1 validation | 6 | ✅ Complete |
-| Phase 2 | AWS deployment (EKS + Step Functions) | TBD | ⬜ Planned |
+| **Phase 2 — Infra** | AWS infrastructure (T6.1 – T6.8) | 8 | ✅ Complete |
+| **Phase 2 — Code** | S3 adapter + Docker build + E2E (T7.x) | TBD | 🚧 Next |
 
 ---
 
@@ -242,6 +292,9 @@ src/
   ideal_driver/       Valhalla map-match + trajectory synthesis (P4)
   scoring/            Penalty functions + score.json writer (P4)
   reporting/          Jinja2 report, SVG chart, Folium map, index (P5)
+scripts/
+  run_full_pipeline.sh   End-to-end pipeline runner
+  py_ekf.py              Python EKF fallback (Phase 2 MVP, VL-1)
 tests/
   unit/               360 unit tests — run with `make test`
   integration/        End-to-end smoke tests (Valhalla required)
@@ -252,14 +305,18 @@ config/
   data_gen.yaml       ENU anchor, simulation parameters
   ratings.yaml        ← gitignored; add your own 1–5 ratings here
 docker/
-  python.Dockerfile   Python worker image
+  python.Dockerfile   Python worker image (Phase 2 ECR target)
   ros2.Dockerfile     ROS 2 + C++ localization image
-  valhalla/           Tile cache (gitignored after first run)
-scripts/
-  run_full_pipeline.sh   End-to-end pipeline runner (T5.5)
-  run_fuse.py            Standalone EKF/UKF runner
-  make_fixtures.py       Generate 60s MCAP test fixtures
-Docs/                 PRD · FRD · TRD · Dev Plan
+infra/
+  terraform/          Phase 2 AWS infrastructure (Terraform)
+    modules/          s3 · ecr · iam · ecs · stepfn · eventbridge · observability
+    envs/dev/         Dev environment — apply with `terraform apply`
+.claude/
+  prompts/            Hypothesis-Driven Development prompts (0–4)
+  skills/             Agent knowledge capsules (aws-infra, sensor-fusion, …)
+docs/
+  LIVING_SPEC.md      Phase 2 hypothesis log and validated learnings
+  PRD / FRD / TRD / DEV_PLAN
 ```
 
 ---
