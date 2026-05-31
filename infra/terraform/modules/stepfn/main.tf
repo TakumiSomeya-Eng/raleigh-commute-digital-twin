@@ -113,7 +113,7 @@ resource "aws_sfn_state_machine" "pipeline" {
       # ── Stage 1: Ingest ──────────────────────────────────────────────────
       Ingest = {
         Type     = "Task"
-        Resource = "arn:aws:states:::ecs:runTask.sync:2"
+        Resource = "arn:aws:states:::ecs:runTask.sync"
         Parameters = {
           Cluster        = var.cluster_arn
           TaskDefinition = var.task_definition_arns["ingest"]
@@ -138,7 +138,7 @@ resource "aws_sfn_state_machine" "pipeline" {
       # ── Stage 2: Fuse (py_ekf.py) ───────────────────────────────────────
       Fuse = {
         Type     = "Task"
-        Resource = "arn:aws:states:::ecs:runTask.sync:2"
+        Resource = "arn:aws:states:::ecs:runTask.sync"
         Parameters = {
           Cluster        = var.cluster_arn
           TaskDefinition = var.task_definition_arns["fuse"]
@@ -163,7 +163,7 @@ resource "aws_sfn_state_machine" "pipeline" {
       # ── Stage 3: Ideal driver ────────────────────────────────────────────
       Ideal = {
         Type     = "Task"
-        Resource = "arn:aws:states:::ecs:runTask.sync:2"
+        Resource = "arn:aws:states:::ecs:runTask.sync"
         Parameters = {
           Cluster        = var.cluster_arn
           TaskDefinition = var.task_definition_arns["ideal"]
@@ -188,7 +188,7 @@ resource "aws_sfn_state_machine" "pipeline" {
       # ── Stage 4: Score ───────────────────────────────────────────────────
       Score = {
         Type     = "Task"
-        Resource = "arn:aws:states:::ecs:runTask.sync:2"
+        Resource = "arn:aws:states:::ecs:runTask.sync"
         Parameters = {
           Cluster        = var.cluster_arn
           TaskDefinition = var.task_definition_arns["score"]
@@ -213,7 +213,7 @@ resource "aws_sfn_state_machine" "pipeline" {
       # ── Stage 5: Report ──────────────────────────────────────────────────
       Report = {
         Type     = "Task"
-        Resource = "arn:aws:states:::ecs:runTask.sync:2"
+        Resource = "arn:aws:states:::ecs:runTask.sync"
         Parameters = {
           Cluster        = var.cluster_arn
           TaskDefinition = var.task_definition_arns["report"]
