@@ -106,6 +106,6 @@ terraform apply
 | T6.6 | EventBridge rule: S3 → Step Functions | ✅ 完了（apply済み 2026-05-30） |
 | T6.7 | GitHub Actions deploy.yaml (build+push+smoke-eval) | 🚧 実装完了・Secrets設定待ち |
 | T6.8 | Cost budget + CloudWatch alert | ⬜ |
-| T6.9 | E2E smoke test | ⬜ |
+| T6.9 | E2E smoke test | ⏸ Dockerイメージ待ち |
 
 詳細は `docs/LIVING_SPEC.md` 参照。

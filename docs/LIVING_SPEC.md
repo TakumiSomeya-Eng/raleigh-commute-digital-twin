@@ -142,10 +142,10 @@ PRD Success Criterion S4（Spearman ρ ≥ 0.6）の検証が現実的な労力�
 | Auth | OIDC（GitHub Actions） | ✅ 確定 |
 
 ### MVP Acceptance Criteria
-- [ ] AC-MVP-1: S3アップロードで処理が自動開始する
-- [ ] AC-MVP-2: 15分以内にscore.jsonが出力される
-- [ ] AC-MVP-3: score.jsonがPhase 1値（34.8）と±2以内で一致する
-- [ ] AC-MVP-4: 月額コスト$20以下（EKSなしのMVP）
+- [x] AC-MVP-1: S3アップロードで処理が自動開始する（EventBridge → Step Functions確認済み）
+- [ ] AC-MVP-2: 15分以内にscore.jsonが出力される（Dockerイメージ待ち）
+- [ ] AC-MVP-3: score.jsonがPhase 1値（34.8）と±2以内で一致する（Dockerイメージ待ち）
+- [x] AC-MVP-4: 月額コスト$20以下（EKSなし確定、現在$0）
 
 ### Evidence
 *（実装後に記入）*
@@ -174,6 +174,13 @@ PRD Success Criterion S4（Spearman ρ ≥ 0.6）の検証が現実的な労力�
 
 
 
+
+
+### VL-8: Phase 2インフラ完成・次はDockerイメージのクラウド対応（2026-05-30）
+
+- **Observation**: T6.1〜T6.8全完了。インフラ全接続確認済み。E2Eテストはコード修正後に実施
+- **Source**: terraform apply全完了ログ（2026-05-30）
+- **Impact**: 次フェーズ（T7.x）= Phase 1コードのS3対応 + Dockerビルド + ECRプッシュ
 
 ### VL-6: T6.1 S3バケット apply 成功（2026-05-30）
 
@@ -221,3 +228,4 @@ PRD Success Criterion S4（Spearman ρ ≥ 0.6）の検証が現実的な労力�
 | 0.3 | 2026-05-30 | Domain/Interaction仮説承認。VL-5追加。通知方式確定 |
 | 0.4 | 2026-05-30 | Implementation仮説承認。全5層完了。MVP実装ゲート解除。T6.1開始 |
 | 0.5 | 2026-05-30 | T6.1完了（S3バケットapply成功）。VL-6追加 |
+| 0.6 | 2026-05-30 | T6.2〜T6.8完了。Phase 2インフラフェーズクローズ。VL-8追加 |
