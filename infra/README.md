@@ -103,7 +103,7 @@ terraform apply
 | T6.3 | IAM roles: 4 roles, least-privilege (FR-12.7) | ✅ 完了（apply済み 2026-05-30） |
 | T6.4 | ECS Fargate cluster + task definitions | ✅ 完了（apply済み 2026-05-30） |
 | T6.5 | Step Functions state machine + SNS notify | ✅ 完了（apply済み 2026-05-30） |
-| T6.6 | EventBridge rule: S3 → Step Functions | ⬜ |
+| T6.6 | EventBridge rule: S3 → Step Functions | ✅ 完了（apply済み 2026-05-30） |
 | T6.7 | GitHub Actions deploy.yaml | ⬜ |
 | T6.8 | Cost budget + CloudWatch alert | ⬜ |
 | T6.9 | E2E smoke test | ⬜ |
