@@ -1,0 +1,197 @@
+# deploy.yaml — Build python-worker image, push to ECR, run smoke eval (T6.7, FR-12.5)
+#
+# Triggers: push to main branch only (never on PRs)
+# Steps:
+#   1. Checkout
+#   2. OIDC login to AWS (rct-gha-dev role, no long-lived keys)
+#   3. Build docker/python.Dockerfile
+#   4. Push to ECR rct/python-worker:{sha} and :latest
+#   5. Smoke eval: upload day2 fixture -> assert score.json within ±2 of baseline 34.8
+#
+# Required GitHub secrets (set in repo Settings -> Secrets -> Actions):
+#   AWS_ACCOUNT_ID   : 478499049895
+#   AWS_REGION       : us-east-1
+#
+# Required GitHub variables (set in repo Settings -> Variables -> Actions):
+#   (none — all values derived from secrets or hardcoded)
+
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "src/**"
+      - "scripts/**"
+      - "docker/python.Dockerfile"
+      - "requirements*.txt"
+      - "pyproject.toml"
+      - ".github/workflows/deploy.yaml"
+
+  # Allow manual trigger for re-deploys
+  workflow_dispatch:
+
+permissions:
+  id-token: write   # required for OIDC
+  contents: read
+
+env:
+  AWS_REGION:     ${{ secrets.AWS_REGION }}
+  AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+  ECR_REPO:       rct/python-worker
+  IMAGE_TAG:      ${{ github.sha }}
+
+jobs:
+  # ── Job 1: Build & Push ─────────────────────────────────────────────────────
+  build-push:
+    name: Build & Push to ECR
+    runs-on: ubuntu-latest
+    outputs:
+      image_uri: ${{ steps.build.outputs.image_uri }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ env.AWS_ACCOUNT_ID }}:role/rct-gha-dev
+          aws-region:     ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build, tag, and push image
+        id: build
+        env:
+          REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        run: |
+          IMAGE_URI="${REGISTRY}/${ECR_REPO}:${IMAGE_TAG}"
+          LATEST_URI="${REGISTRY}/${ECR_REPO}:latest"
+
+          docker build \
+            --cache-from "${LATEST_URI}" \
+            --build-arg BUILDKIT_INLINE_CACHE=1 \
+            -t "${IMAGE_URI}" \
+            -t "${LATEST_URI}" \
+            -f docker/python.Dockerfile \
+            .
+
+          docker push "${IMAGE_URI}"
+          docker push "${LATEST_URI}"
+
+          echo "image_uri=${IMAGE_URI}" >> "$GITHUB_OUTPUT"
+
+  # ── Job 2: Smoke Eval ───────────────────────────────────────────────────────
+  smoke-eval:
+    name: Smoke Eval (day2 fixture)
+    runs-on: ubuntu-latest
+    needs: build-push
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ env.AWS_ACCOUNT_ID }}:role/rct-gha-dev
+          aws-region:     ${{ env.AWS_REGION }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install test dependencies
+        run: pip install boto3 pytest --quiet
+
+      - name: Upload day2 fixture to S3
+        env:
+          S3_BUCKET: rct-data-takumi2026
+          TRIP_ID:   ci-day2-${{ github.run_id }}
+        run: |
+          # Upload the day2 CSV fixture to raw/ prefix to trigger the pipeline.
+          aws s3 cp tests/fixtures/day2-csv/ \
+            s3://${S3_BUCKET}/raw/${TRIP_ID}/ \
+            --recursive \
+            --quiet
+          echo "TRIP_ID=${TRIP_ID}" >> "$GITHUB_ENV"
+
+      - name: Wait for pipeline completion (max 20 min)
+        env:
+          S3_BUCKET:       rct-data-takumi2026
+          STATE_MACHINE:   arn:aws:states:${{ env.AWS_REGION }}:${{ env.AWS_ACCOUNT_ID }}:stateMachine:rct-pipeline-dev
+        run: |
+          python - << 'EOF'
+          import boto3, time, sys, os
+
+          trip_id  = os.environ["TRIP_ID"]
+          bucket   = os.environ["S3_BUCKET"]
+          sfn_arn  = os.environ["STATE_MACHINE"]
+          timeout  = 1200  # 20 minutes
+          interval = 30
+
+          sfn = boto3.client("states", region_name=os.environ["AWS_REGION"])
+          s3  = boto3.client("s3",     region_name=os.environ["AWS_REGION"])
+
+          print(f"Waiting for score.json: s3://{bucket}/scores/{trip_id}/score.json")
+          elapsed = 0
+          while elapsed < timeout:
+              try:
+                  s3.head_object(Bucket=bucket, Key=f"scores/{trip_id}/score.json")
+                  print(f"score.json found after {elapsed}s")
+                  sys.exit(0)
+              except s3.exceptions.ClientError:
+                  pass
+              time.sleep(interval)
+              elapsed += interval
+              print(f"  still waiting... {elapsed}s elapsed")
+
+          print("TIMEOUT: score.json not found within 20 minutes")
+          sys.exit(1)
+          EOF
+
+      - name: Assert score within baseline ±2 (AC-MVP-3)
+        env:
+          S3_BUCKET:       rct-data-takumi2026
+          LOCAL_BASELINE:  "34.8"
+          TOLERANCE:       "2.0"
+        run: |
+          python - << 'EOF'
+          import boto3, json, os, sys
+
+          trip_id   = os.environ["TRIP_ID"]
+          bucket    = os.environ["S3_BUCKET"]
+          baseline  = float(os.environ["LOCAL_BASELINE"])
+          tolerance = float(os.environ["TOLERANCE"])
+
+          s3  = boto3.client("s3", region_name=os.environ["AWS_REGION"])
+          obj = s3.get_object(Bucket=bucket, Key=f"scores/{trip_id}/score.json")
+          score_json = json.loads(obj["Body"].read())
+
+          cloud_score = score_json["aggregate_0_100"]
+          diff = abs(cloud_score - baseline)
+
+          print(f"Cloud score:    {cloud_score:.1f}")
+          print(f"Local baseline: {baseline:.1f}")
+          print(f"Difference:     {diff:.2f} (tolerance: {tolerance})")
+
+          if diff > tolerance:
+              print(f"FAIL: score regression exceeds ±{tolerance}")
+              sys.exit(1)
+          else:
+              print("PASS: AC-MVP-3 satisfied")
+          EOF
+
+      - name: Cleanup CI fixture from S3
+        if: always()   # cleanup even on failure
+        env:
+          S3_BUCKET: rct-data-takumi2026
+        run: |
+          aws s3 rm s3://${S3_BUCKET}/raw/${TRIP_ID}/     --recursive --quiet || true
+          aws s3 rm s3://${S3_BUCKET}/scores/${TRIP_ID}/  --recursive --quiet || true
+          aws s3 rm s3://${S3_BUCKET}/reports/${TRIP_ID}/ --recursive --quiet || true

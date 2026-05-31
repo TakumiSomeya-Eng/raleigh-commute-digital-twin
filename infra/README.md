@@ -104,7 +104,7 @@ terraform apply
 | T6.4 | ECS Fargate cluster + task definitions | ✅ 完了（apply済み 2026-05-30） |
 | T6.5 | Step Functions state machine + SNS notify | ✅ 完了（apply済み 2026-05-30） |
 | T6.6 | EventBridge rule: S3 → Step Functions | ✅ 完了（apply済み 2026-05-30） |
-| T6.7 | GitHub Actions deploy.yaml | ⬜ |
+| T6.7 | GitHub Actions deploy.yaml (build+push+smoke-eval) | 🚧 実装完了・Secrets設定待ち |
 | T6.8 | Cost budget + CloudWatch alert | ⬜ |
 | T6.9 | E2E smoke test | ⬜ |
 
