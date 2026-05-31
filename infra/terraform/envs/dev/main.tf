@@ -93,3 +93,10 @@ module "eventbridge" {
   state_machine_arn = module.stepfn.state_machine_arn
   stepfn_role_arn   = module.iam.stepfn_role_arn
 }
+
+module "observability" {
+  source = "../../modules/observability"
+
+  env         = "dev"
+  alert_email = var.alert_email
+}
