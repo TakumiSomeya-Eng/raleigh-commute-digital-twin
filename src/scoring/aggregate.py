@@ -17,6 +17,11 @@ import json
 import sys
 from pathlib import Path
 
+try:
+    from storage import StorageAdapter  # Phase 2 S3 adapter (T7.3)
+except ImportError:
+    StorageAdapter = None  # type: ignore[assignment,misc]
+
 import pandas as pd
 import yaml
 
@@ -200,22 +205,20 @@ def make_score(
     config_path: Path,
     ideal_config_path: Path,
 ) -> int:
-    """Compute ``score.json`` for *trace*.  Returns exit code (0 = success)."""
-    fused_path = out_dir / trace / f"fused_{filter_name}.parquet"
-    ideal_path = out_dir / trace / "ideal_trajectory.parquet"
-    ref_path_file = out_dir / trace / "reference_path.parquet"
+    """Compute ``score.json`` for *trace*.  Returns exit code (0 = success). S3-aware (T7.3)."""
+    store = StorageAdapter.from_env(out_dir=out_dir) if StorageAdapter else None
 
-    for p in (fused_path, ideal_path, ref_path_file):
-        if not p.exists():
-            sys.stderr.write(f"ERROR: {p} not found -- run earlier pipeline stages.\n")
-            return 1
+    def _read(stage: str, filename: str) -> pd.DataFrame:
+        if store and store.is_s3:
+            return store.read_parquet(stage, trace, filename)
+        return pd.read_parquet(out_dir / trace / filename)
 
-    _log(f"loading fused_{filter_name} from {fused_path}")
-    fused = pd.read_parquet(fused_path)
-    _log(f"loading ideal_trajectory from {ideal_path}")
-    ideal = pd.read_parquet(ideal_path)
-    _log(f"loading reference_path from {ref_path_file}")
-    ref_path = pd.read_parquet(ref_path_file)
+    _log(f"loading fused_{filter_name} (s3={store.is_s3 if store else False})")
+    fused = _read("fused", f"fused_{filter_name}.parquet")
+    _log("loading ideal_trajectory")
+    ideal = _read("ideal", "ideal_trajectory.parquet")
+    _log("loading reference_path")
+    ref_path = _read("ideal", "reference_path.parquet")
 
     _log(f"computing score for trace={trace} filter={filter_name}")
     try:
@@ -232,14 +235,16 @@ def make_score(
         sys.stderr.write(f"ERROR computing score: {exc}\n")
         return 1
 
-    out_path = out_dir / trace / "score.json"
-    out_path.parent.mkdir(parents=True, exist_ok=True)
-    out_path.write_text(json.dumps(score_doc, indent=2) + "\n", encoding="utf-8")
+    if store and store.is_s3:
+        store.write_json(score_doc, "scores", trace, "score.json")
+    else:
+        out_path = out_dir / trace / "score.json"
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        out_path.write_text(json.dumps(score_doc, indent=2) + "\n", encoding="utf-8")
 
     _log(
         f"score_0_100={score_doc['score_0_100']:.1f}  "
-        f"tip={score_doc['suggested_tip_pct']}% ({score_doc['suggested_tip_band']})  "
-        f"wrote {out_path}"
+        f"tip={score_doc['suggested_tip_pct']}% ({score_doc['suggested_tip_band']})"
     )
     return 0
 

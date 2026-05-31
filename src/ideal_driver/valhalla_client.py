@@ -29,6 +29,16 @@ import datetime
 import sys
 import time
 from pathlib import Path
+
+try:
+    from storage import StorageAdapter  # Phase 2 S3 adapter (T7.3)
+except ImportError:
+    StorageAdapter = None  # type: ignore[assignment,misc]
+
+try:
+    from storage import StorageAdapter  # Phase 2 S3 adapter (T7.3)
+except ImportError:
+    StorageAdapter = None  # type: ignore[assignment,misc]
 from typing import Any
 
 import numpy as np
@@ -310,13 +320,17 @@ def map_match(
     from data_engine.parquet_io import write_parquet
     from data_engine.schemas import RouteMatched
 
-    fused_path = out_dir / trace / "fused_ekf.parquet"
-    if not fused_path.exists():
-        sys.stderr.write(f"ERROR: {fused_path} not found -- run `make fuse` first.\n")
-        return 1
-
-    _log("FR-9.1 match", f"loading fused trajectory from {fused_path}")
-    fused = pd.read_parquet(fused_path)
+    store = StorageAdapter.from_env(out_dir=out_dir) if StorageAdapter else None
+    if store and store.is_s3:
+        _log("FR-9.1 match", f"loading fused/ekf from S3 (s3=True)")
+        fused = store.read_parquet("fused", trace, "fused_ekf.parquet")
+    else:
+        fused_path = out_dir / trace / "fused_ekf.parquet"
+        if not fused_path.exists():
+            sys.stderr.write(f"ERROR: {fused_path} not found -- run `make fuse` first.\n")
+            return 1
+        _log("FR-9.1 match", f"loading fused trajectory from {fused_path}")
+        fused = pd.read_parquet(fused_path)
 
     # Load ENU anchor from config
     with open(config_path, encoding="utf-8") as fh:
@@ -351,10 +365,14 @@ def map_match(
         f"median_dist={df.distance_from_road_m.median():.1f} m",
     )
 
-    # Write parquet
-    out_path = out_dir / trace / "route_matched.parquet"
-    write_parquet(df, out_path, RouteMatched, trip_id=trace)
-    _log("FR-9.1 match", f"wrote {out_path} ({out_path.stat().st_size} bytes)")
+    # Write parquet (S3-aware)
+    if store and store.is_s3:
+        store.write_parquet(df, "ideal", trace, "route_matched.parquet")
+        _log("FR-9.1 match", "uploaded ideal/{trace}/route_matched.parquet to S3")
+    else:
+        out_path = out_dir / trace / "route_matched.parquet"
+        write_parquet(df, out_path, RouteMatched, trip_id=trace)
+        _log("FR-9.1 match", f"wrote {out_path} ({out_path.stat().st_size} bytes)")
 
     if match_rate < _MIN_MATCH_RATE:
         sys.stderr.write(

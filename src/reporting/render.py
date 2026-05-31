@@ -16,6 +16,16 @@ import json
 import sys
 from pathlib import Path
 
+try:
+    from storage import StorageAdapter  # Phase 2 S3 adapter (T7.3)
+except ImportError:
+    StorageAdapter = None  # type: ignore[assignment,misc]
+
+try:
+    from storage import StorageAdapter  # Phase 2 S3 adapter (T7.3)
+except ImportError:
+    StorageAdapter = None  # type: ignore[assignment,misc]
+
 import numpy as np
 import pandas as pd
 from jinja2 import Environment, FileSystemLoader
@@ -122,30 +132,32 @@ def render_report(
 
     trace_dir = out_dir / trace
 
-    # -- Load required inputs --
-    score_path = trace_dir / "score.json"
-    fused_path = trace_dir / "fused_ekf.parquet"
+    # -- Load required inputs (S3-aware, T7.3) --
+    store = StorageAdapter.from_env(out_dir=out_dir) if StorageAdapter else None
 
-    if not score_path.exists():
-        sys.stderr.write(f"ERROR: {score_path} not found -- run `make score` first.\n")
-        sys.exit(1)
-    if not fused_path.exists():
-        sys.stderr.write(f"ERROR: {fused_path} not found -- run `make fuse` first.\n")
-        sys.exit(1)
+    def _read_pq(stage: str, filename: str) -> pd.DataFrame:
+        if store and store.is_s3:
+            return store.read_parquet(stage, trace, filename)
+        return pd.read_parquet(trace_dir / filename)
 
-    _log(f"loading score.json from {score_path}")
-    score_doc = json.loads(score_path.read_text(encoding="utf-8"))
+    def _read_json(stage: str, filename: str) -> dict:
+        if store and store.is_s3:
+            return store.read_json(stage, trace, filename)
+        p = trace_dir / filename
+        return json.loads(p.read_text(encoding="utf-8"))
 
-    _log(f"loading fused_ekf from {fused_path}")
-    fused = pd.read_parquet(fused_path)
+    _log(f"loading score.json (s3={store.is_s3 if store else False})")
+    score_doc = _read_json("scores", "score.json")
+
+    _log("loading fused_ekf")
+    fused = _read_pq("fused", "fused_ekf.parquet")
 
     # Load ideal trajectory if available
-    ideal_path = trace_dir / "ideal_trajectory.parquet"
     ideal: pd.DataFrame | None = None
-    if ideal_path.exists():
-        _log(f"loading ideal_trajectory from {ideal_path}")
-        ideal = pd.read_parquet(ideal_path)
-    else:
+    try:
+        _log("loading ideal_trajectory")
+        ideal = _read_pq("ideal", "ideal_trajectory.parquet")
+    except Exception:
         _log("ideal_trajectory.parquet not found -- map will show actual only")
 
     # -- Compute trip metadata --
@@ -216,14 +228,20 @@ def render_report(
 
     html = template.render(**context)
 
-    # -- Write output --
-    out_path = trace_dir / "report.html"
-    out_path.write_text(html, encoding="utf-8")
-    size_kb = out_path.stat().st_size / 1024
+    # -- Write output (S3-aware, T7.3) --
+    html_bytes = html.encode("utf-8")
+    size_kb = len(html_bytes) / 1024
 
-    _log(f"wrote {out_path} ({size_kb:.1f} KB)")
+    if store and store.is_s3:
+        store.write_bytes(html_bytes, "reports", trace, "report.html", content_type="text/html")
+        _log(f"uploaded reports/{trace}/report.html ({size_kb:.1f} KB)")
+        out_path = trace_dir / "report.html"  # dummy for return type
+    else:
+        out_path = trace_dir / "report.html"
+        out_path.write_text(html, encoding="utf-8")
+        _log(f"wrote {out_path} ({size_kb:.1f} KB)")
 
-    if out_path.stat().st_size > _MAX_REPORT_BYTES:
+    if len(html_bytes) > _MAX_REPORT_BYTES:
         sys.stderr.write(f"WARNING: report.html is {size_kb:.0f} KB -- exceeds 5 MB DoD limit.\n")
 
     return out_path

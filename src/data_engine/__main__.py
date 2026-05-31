@@ -27,6 +27,7 @@ from data_engine.errors import MissingRequiredChannelError, SchemaValidationErro
 from data_engine.ingest import parse_and_align
 from data_engine.parquet_io import write_parquet
 from data_engine.schemas import Aligned100Hz
+from storage import StorageAdapter
 
 logging.basicConfig(level=logging.INFO, format="%(message)s", stream=sys.stdout)
 logger = logging.getLogger(__name__)
@@ -40,12 +41,14 @@ def _load_config(path: Path) -> dict:  # type: ignore[type-arg]
 
 
 def _cmd_ingest(args: argparse.Namespace) -> int:
-    """Execute the ingest pipeline (FR-1.1 through FR-1.5)."""
+    """Execute the ingest pipeline (FR-1.1 through FR-1.5). S3-aware (T7.3)."""
+    import tempfile  # noqa: PLC0415
+
     cfg_path = Path(args.config) if args.config else _DEFAULT_CONFIG
-    out_path = Path(args.out_dir) / args.trace / "aligned_100hz.parquet"
+    store = StorageAdapter.from_env(out_dir=Path(args.out_dir))
 
     if args.dry_run:
-        sys.stdout.write(f"[dry-run] Would write: {out_path}\n")
+        sys.stdout.write(f"[dry-run] Would write: processed/{args.trace}/aligned_100hz.parquet\n")
         return StageExitCode.SUCCESS
 
     try:
@@ -58,9 +61,18 @@ def _cmd_ingest(args: argparse.Namespace) -> int:
         sys.stderr.write(f"Config error: {exc}\n")
         return StageExitCode.USER_ERROR
 
+    # When running in AWS: download CSVs from S3 raw/{trip_id}/ to a temp dir.
+    # When running locally: use --data-dir as-is.
+    if store.is_s3:
+        tmp_dir = Path(tempfile.mkdtemp())
+        store.download_raw_csv_dir(args.trace, tmp_dir)
+        csv_dir = tmp_dir
+    else:
+        csv_dir = Path(args.data_dir)
+
     try:
         df = parse_and_align(
-            Path(args.data_dir),
+            csv_dir,
             lat0_deg=lat0,
             lon0_deg=lon0,
             target_hz=target_hz,
@@ -71,7 +83,23 @@ def _cmd_ingest(args: argparse.Namespace) -> int:
         return StageExitCode.USER_ERROR
 
     try:
-        write_parquet(df, out_path, Aligned100Hz, trip_id=args.trace)
+        if store.is_s3:
+            # Write via StorageAdapter (S3 upload)
+            import pyarrow as pa  # noqa: PLC0415
+            import pyarrow.parquet as pq  # noqa: PLC0415
+            import io  # noqa: PLC0415
+            table = pa.Table.from_pandas(df, preserve_index=False)
+            buf = io.BytesIO()
+            pq.write_table(table, buf, compression="snappy")
+            buf.seek(0)
+            store._s3.put_object(
+                Bucket=store._bucket,
+                Key=store.s3_key("processed", args.trace, "aligned_100hz.parquet"),
+                Body=buf.getvalue(),
+            )
+        else:
+            out_path = Path(args.out_dir) / args.trace / "aligned_100hz.parquet"
+            write_parquet(df, out_path, Aligned100Hz, trip_id=args.trace)
     except SchemaValidationError as exc:
         sys.stderr.write(f"[FR-1.4 ingest] ERROR  {exc}\n")
         return StageExitCode.DATA_ERROR

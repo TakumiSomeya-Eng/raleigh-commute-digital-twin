@@ -335,18 +335,21 @@ def _build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> None:
-    args = _build_parser().parse_args(argv)
-    aligned = args.out_dir / args.trace / "aligned_100hz.parquet"
-    out_path = args.out_dir / args.trace / "fused_ekf.parquet"
+    import sys as _sys  # noqa: PLC0415
+    _sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
+    from storage import StorageAdapter  # noqa: PLC0415
 
-    _log("py-ekf", f"reading {aligned}")
-    df = pd.read_parquet(aligned)
+    args = _build_parser().parse_args(argv)
+    store = StorageAdapter.from_env(out_dir=args.out_dir)
+
+    _log("py-ekf", f"reading processed/{args.trace}/aligned_100hz.parquet (s3={store.is_s3})")
+    df = store.read_parquet("processed", args.trace, "aligned_100hz.parquet")
 
     fused = run_ekf(df)
 
-    _log("py-ekf", f"writing {out_path}  ({len(fused)} rows)")
-    fused.to_parquet(out_path, index=False)
-    _log("py-ekf", f"done: {out_path.stat().st_size} bytes")
+    _log("py-ekf", f"writing fused/{args.trace}/fused_ekf.parquet ({len(fused)} rows)")
+    store.write_parquet(fused, "fused", args.trace, "fused_ekf.parquet")
+    _log("py-ekf", "done")
 
 
 if __name__ == "__main__":

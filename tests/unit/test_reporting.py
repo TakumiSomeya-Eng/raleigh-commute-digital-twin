@@ -301,5 +301,5 @@ class TestRenderReport:
 
         (tmp_path / "day2").mkdir()
         _make_fused().to_parquet(tmp_path / "day2" / "fused_ekf.parquet")
-        with pytest.raises(SystemExit):
+        with pytest.raises((SystemExit, FileNotFoundError)):
             render_report("day2", tmp_path)
