@@ -57,7 +57,16 @@ RUN apt-get update \
 COPY --from=builder /opt/venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
-WORKDIR /workspace
-VOLUME ["/workspace", "/data", "/out"]
+# Copy application source into the image (Phase 2 Fargate — no volume mounts)
+COPY src/ /app/src/
+COPY scripts/ /app/scripts/
+COPY config/ /app/config/
 
+WORKDIR /app
+
+# PYTHONPATH must include src/ so all modules resolve correctly
+ENV PYTHONPATH="/app/src:$PYTHONPATH"
+
+# Default entrypoint — overridden per stage by Step Functions ContainerOverrides
 ENTRYPOINT ["python3.11"]
+CMD ["-m", "data_engine", "--help"]

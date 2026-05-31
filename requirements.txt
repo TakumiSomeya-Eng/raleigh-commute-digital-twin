@@ -23,3 +23,7 @@ requests==2.32.3
 
 # ROS 2 bag I/O
 mcap==1.3.1
+
+# AWS S3 (Phase 2 cloud pipeline, T7.1)
+boto3==1.34.144
+botocore==1.34.144
