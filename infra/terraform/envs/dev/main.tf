@@ -36,3 +36,9 @@ module "s3" {
   bucket_suffix = var.bucket_suffix
   env           = "dev"
 }
+
+module "ecr" {
+  source = "../../modules/ecr"
+
+  env = "dev"
+}

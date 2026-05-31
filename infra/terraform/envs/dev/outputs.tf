@@ -7,3 +7,8 @@ output "data_bucket_arn" {
   description = "ARN of the dev data bucket."
   value       = module.s3.bucket_arn
 }
+
+output "python_worker_repository_url" {
+  description = "ECR URL for the python-worker image."
+  value       = module.ecr.python_worker_repository_url
+}

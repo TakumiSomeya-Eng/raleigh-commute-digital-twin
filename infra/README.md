@@ -99,7 +99,7 @@ terraform apply
 | TaskID | 内容 | 状態 |
 |---|---|---|
 | T6.1 | S3 bucket + prefix layout (FR-12.1) | ✅ 完了（apply済み） |
-| T6.2 | ECR repositories x2 (FR-12.2) | ⬜ |
+| T6.2 | ECR repository: python-worker only (FR-12.2, MVP) | 🚧 実装完了・検証待ち |
 | T6.3 | IAM roles (FR-12.7) | ⬜ |
 | T6.4 | ECS Fargate cluster + task definitions | ⬜ |
 | T6.5 | Step Functions state machine | ⬜ |
