@@ -17,3 +17,13 @@ output "gha_role_arn" {
   description = "GitHub Actions OIDC role ARN (paste into deploy.yaml)."
   value       = module.iam.gha_role_arn
 }
+
+output "ecs_cluster_arn" {
+  description = "ECS cluster ARN (for Step Functions)."
+  value       = module.ecs.cluster_arn
+}
+
+output "ecs_task_definition_arns" {
+  description = "Map of stage -> task definition ARN."
+  value       = module.ecs.task_definition_arns
+}
