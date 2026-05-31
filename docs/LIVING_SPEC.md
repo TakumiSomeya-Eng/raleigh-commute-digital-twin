@@ -206,7 +206,7 @@ PRD Success Criterion S4（Spearman ρ ≥ 0.6）の検証が現実的な労力�
 | T6.5 | Step Functions state machine（MVPの5ステージ） | 🔲 |
 | T6.6 | EventBridge rule: S3 → Step Functions | 🔲 |
 | T6.7 | GitHub Actions deploy.yaml | 🔲 |
-| T6.8 | Cost budget + CloudWatch alert | 🔲 |
+| T6.8 | Cost budget + alert (BR-4: $50 ceiling) | ✅ 完了（apply済み 2026-05-30） |
 | T6.9 | E2E smoke test | 🔲 |
 | T6.10 | EKS cluster（オプション、後期） | ⬜ |
 
