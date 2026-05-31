@@ -1,31 +1,30 @@
-# Generated outputs — never baked into images
-out/
+# Git internals
+.git
+.claude
 
-# Raw trace data
+# Local data and outputs (not needed in image)
 data/
-Data/
+out/
+*.log
 
-# Git history
-.git/
-
-# Python caches
+# Python cache
 __pycache__/
-*.py[cod]
-.ruff_cache/
-.mypy_cache/
+*.pyc
+*.pyo
+*.pyd
 .pytest_cache/
 *.egg-info/
-
-# C++ build artifacts
+dist/
 build/
-install/
-log/
 
-# Editor artifacts
-.vscode/
-.idea/
+# Terraform state (sensitive)
+infra/terraform/**/.terraform
+infra/terraform/**/*.tfstate
+infra/terraform/**/*.tfvars
 
-# CI / local config not needed in images
-.github/
-infra/
-Docs/
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker
+docker/valhalla/
