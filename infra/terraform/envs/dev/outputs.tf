@@ -32,3 +32,8 @@ output "state_machine_arn" {
   description = "Step Functions state machine ARN."
   value       = module.stepfn.state_machine_arn
 }
+
+output "eventbridge_rule_name" {
+  description = "EventBridge rule that triggers the pipeline."
+  value       = module.eventbridge.rule_name
+}

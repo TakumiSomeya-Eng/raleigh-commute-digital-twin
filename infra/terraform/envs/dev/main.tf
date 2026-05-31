@@ -82,3 +82,14 @@ module "stepfn" {
   alert_email          = var.alert_email
   log_group_name       = module.ecs.log_group_name
 }
+
+module "eventbridge" {
+  source = "../../modules/eventbridge"
+
+  env               = "dev"
+  aws_region        = var.region
+  aws_account_id    = var.aws_account_id
+  data_bucket_name  = module.s3.bucket_name
+  state_machine_arn = module.stepfn.state_machine_arn
+  stepfn_role_arn   = module.iam.stepfn_role_arn
+}
