@@ -27,3 +27,8 @@ output "ecs_task_definition_arns" {
   description = "Map of stage -> task definition ARN."
   value       = module.ecs.task_definition_arns
 }
+
+output "state_machine_arn" {
+  description = "Step Functions state machine ARN."
+  value       = module.stepfn.state_machine_arn
+}

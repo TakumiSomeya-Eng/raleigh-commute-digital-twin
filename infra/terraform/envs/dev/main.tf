@@ -64,3 +64,21 @@ module "ecs" {
   execution_role_arn = module.iam.fargate_execution_role_arn
   data_bucket_name   = module.s3.bucket_name
 }
+
+module "stepfn" {
+  source = "../../modules/stepfn"
+
+  env                  = "dev"
+  aws_region           = var.region
+  aws_account_id       = var.aws_account_id
+  stepfn_role_arn      = module.iam.stepfn_role_arn
+  cluster_arn          = module.ecs.cluster_arn
+  task_definition_arns = module.ecs.task_definition_arns
+  task_role_arn        = module.iam.fargate_task_role_arn
+  execution_role_arn   = module.iam.fargate_execution_role_arn
+  subnet_ids           = var.subnet_ids
+  security_group_ids   = [module.stepfn.fargate_security_group_id]
+  data_bucket_name     = module.s3.bucket_name
+  alert_email          = var.alert_email
+  log_group_name       = module.ecs.log_group_name
+}
