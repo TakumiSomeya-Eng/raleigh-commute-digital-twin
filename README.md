@@ -118,6 +118,96 @@ All three containers share the `rct-net` network and `/workspace`, `/data`, `/ou
 
 ---
 
+
+## System Boundary
+
+> **The core question of system boundary design is not "what can we build?" but "what are we responsible for?"**
+> Drawing the boundary defines the system's purpose, the interfaces it exposes, and where responsibility ends.
+
+### System of Interest (SoI)
+
+> *"A pipeline that automatically scores an Uber ride from raw sensor data and suggests a tip."*
+
+Everything inside the boundary is what this system **builds and owns**.
+Everything outside is what it **consumes or interacts with** — but does not control.
+
+### Actors (outside the boundary)
+
+| Actor | Type | Relationship to SoI |
+|---|---|---|
+| **Passenger (Takumi)** | Human | Primary actor — uploads CSVs, receives score and tip suggestion |
+| **Sensor Logger** | External system | Data collection tool. SoI consumes its CSV output; never modifies it |
+| **Uber driver** | Human | Subject of scoring. No direct interface with SoI |
+| **AWS (platform)** | Environment | Provides S3, ECS, Step Functions etc. SoI runs *on top of* it |
+| **Valhalla / OSM** | External system | Provides map matching and speed limits. Bundled as a container but map data is outside SoI |
+
+### Interface definitions (responsibility boundaries)
+
+Every interaction that crosses the system boundary is an explicit interface.
+When something breaks, these definitions answer: *whose responsibility is it?*
+
+| IF | Connection | Direction | Format | Responsibility split |
+|---|---|---|---|---|
+| **IF-1** | Sensor Logger → SoI | Input | 7 CSV files (Location, Accel, Gyro, Gravity, Orientation, Mag, TotalAccel) | CSV schema changes are outside SoI. SoI detects them via schema validation |
+| **IF-2** | Passenger → SoI | Input | Upload to S3 `raw/{trip_id}/` via AWS Console | Upload action is outside SoI. Everything after the upload is SoI's responsibility |
+| **IF-3** | SoI → Passenger | Output | SNS email (score + report.html S3 link + error details on failure) | Email delivery is SNS/SES responsibility. Content accuracy is SoI's responsibility |
+| **IF-4** | SoI → Passenger | Output | `score.json` (aggregate_0_100, tip_pct, config_hash) | Scoring logic is SoI's responsibility. Whether to tip is the passenger's decision — outside SoI |
+| **IF-5** | SoI → Valhalla | Output | GPS trace (GeoJSON) | HTTP request format is SoI's responsibility. Routing algorithm is Valhalla's responsibility |
+| **IF-6** | Valhalla → SoI | Input | Matched route (coordinate sequence, speed limits, estimated time) | Map data accuracy is OSM/Valhalla's responsibility. Interpretation of results is SoI's |
+| **IF-7** | AWS → SoI | Environment | EventBridge, ECS, S3, SNS APIs | AWS service availability is AWS's responsibility. Configuration and usage is SoI's |
+
+### What was deliberately placed outside the boundary
+
+Every exclusion was an explicit decision — not an omission.
+
+| Excluded | Why |
+|---|---|
+| **EKS (Kubernetes)** | Control plane costs $72/month, exceeding the $50/month ceiling (VL-2). `py_ekf.py` matches C++ EKF accuracy (VL-1) |
+| **Mobile app** | AWS Console covers the upload workflow with zero additional implementation (+40h saved, VL-4) |
+| **AWS Lambda** | day2 processing takes ~14.8 min — too close to Lambda's 15-min hard limit |
+| **Tip payment** | The passenger decides whether to tip. SoI proposes only |
+| **UKF in cloud** | EKF accuracy is sufficient (VL-1). Adding UKF would add cost and a second task definition |
+| **Uber's platform** | The goal is rider-side transparency. Notifying the driver is out of scope |
+| **Multi-region** | Explicitly listed as a non-goal in PRD §1.4 |
+
+### SoI as a black box
+
+Ignoring implementation, the system does exactly one thing:
+
+```
+INPUT                          SoI                    OUTPUT
+─────────────────────────────────────────────────────────────
+7 Sensor Logger CSVs  ──▶  [ pipeline ]  ──▶  aggregate score 0–100
+trip_id                                         suggested tip %
+                                                report.html
+```
+
+The internal stages (ingest → fuse → ideal → score → report) are invisible
+to the actor. The only contract is: *upload CSVs, receive a scored report by email.*
+
+### Why the boundary changed mid-project (and what prevented a rewrite)
+
+The original design placed EKS inside the boundary. A cost estimate during the
+Implementation hypothesis phase revealed the $72/month overage (VL-2).
+EKS was moved outside; `py_ekf.py` replaced the C++ EKF node.
+
+**What limited the blast radius:**
+
+```
+Before change          After change
+─────────────          ────────────
+EKS (C++ EKF)    →    Fargate (py_ekf.py)
+      ↓                      ↓
+S3 fused/{trip_id}/fused_ekf.parquet  ← unchanged
+      ↓                      ↓
+StorageAdapter.from_env()    ← unchanged
+```
+
+The S3 prefix layout and `StorageAdapter` were designed as stable internal interfaces.
+When the EKS boundary was removed, only the execution layer changed — nothing downstream did.
+
+---
+
 ## Development Process
 
 This project follows the **Hypothesis Hierarchy Model** — all implementation
