@@ -128,83 +128,216 @@ All three containers share the `rct-net` network and `/workspace`, `/data`, `/ou
 
 > *"A pipeline that automatically scores an Uber ride from raw sensor data and suggests a tip."*
 
-Everything inside the boundary is what this system **builds and owns**.
-Everything outside is what it **consumes or interacts with** — but does not control.
+Everything **inside** the boundary is what this system builds, owns, and is responsible for fixing when it breaks.
+Everything **outside** is what it consumes or interacts with — but does not control.
 
-### Actors (outside the boundary)
+---
 
-| Actor | Type | Relationship to SoI |
-|---|---|---|
-| **Passenger (Takumi)** | Human | Primary actor — uploads CSVs, receives score and tip suggestion |
-| **Sensor Logger** | External system | Data collection tool. SoI consumes its CSV output; never modifies it |
-| **Uber driver** | Human | Subject of scoring. No direct interface with SoI |
-| **AWS (platform)** | Environment | Provides S3, ECS, Step Functions etc. SoI runs *on top of* it |
-| **Valhalla / OSM** | External system | Provides map matching and speed limits. Bundled as a container but map data is outside SoI |
+### Full System Picture
 
-### Interface definitions (responsibility boundaries)
+```mermaid
+flowchart TB
+  classDef actor    fill:#F8FAFC,stroke:#94A3B8,color:#1E293B,stroke-width:1.5px
+  classDef soi      fill:#EFF6FF,stroke:#3B82F6,color:#1E3A8A,stroke-width:2px
+  classDef stage    fill:#DBEAFE,stroke:#2563EB,color:#1E3A8A,stroke-width:1px
+  classDef store    fill:#F0FDF4,stroke:#16A34A,color:#14532D,stroke-width:1px
+  classDef infra    fill:#FEF9C3,stroke:#CA8A04,color:#713F12,stroke-width:1px
+  classDef out      fill:#F0FDF4,stroke:#059669,color:#064E3B,stroke-width:2px
+  classDef excluded fill:#FEF2F2,stroke:#FCA5A5,color:#991B1B,stroke-dasharray:4,stroke-width:1.5px
+  classDef ifnode   fill:#FFFFFF,stroke:#6366F1,color:#3730A3,stroke-width:1.5px
 
-Every interaction that crosses the system boundary is an explicit interface.
-When something breaks, these definitions answer: *whose responsibility is it?*
+  %% ── Actors (outside SoI) ──────────────────────────────────────
+  PHONE("📱 Sensor Logger
+[External App]
+Records GPS + IMU
+during Uber ride"):::actor
+  PASSENGER("🧑 Passenger
+[Human Actor]
+Uploads CSVs
+Receives scored report"):::actor
+  DRIVER("🚗 Uber Driver
+[Human — no interface]
+Subject of scoring
+not notified by SoI"):::actor
+  OSM("🗺️ OpenStreetMap
+[External Data]
+Road network +
+speed limits"):::actor
+  AWS_PLATFORM("☁️ AWS Platform
+[Environment]
+ECS · S3 · EventBridge
+Step Functions · SNS"):::infra
 
-| IF | Connection | Direction | Format | Responsibility split |
+  %% ── Interfaces (boundary crossings) ──────────────────────────
+  IF1("IF-1
+7 CSV files
+Location · Accel · Gyro
+Gravity · Orient · Mag · Total"):::ifnode
+  IF2("IF-2
+S3 upload
+raw/{trip_id}/*.csv
+via AWS Console"):::ifnode
+  IF3("IF-3
+SNS email
+score + report link
++ error details"):::ifnode
+  IF5("IF-5 / IF-6
+GPS trace → Valhalla
+matched route ← Valhalla"):::ifnode
+
+  %% ── System of Interest (SoI) ─────────────────────────────────
+  subgraph SOI["  System of Interest — Raleigh Commute Digital Twin  "]
+    direction TB
+
+    subgraph PIPELINE["  Pipeline (ECS Fargate · Step Functions)  "]
+      direction LR
+      INGEST("⚙️ ingest
+CSV → Parquet
+100 Hz aligned"):::stage
+      FUSE("🔀 fuse
+py_ekf.py
+GPS + IMU → EKF"):::stage
+      IDEAL("📍 ideal
+Valhalla
+map-match"):::stage
+      SCORE("🏆 score
+6 components
+→ score.json"):::stage
+      REPORT("📄 report
+Jinja2 + Folium
+→ report.html"):::stage
+      INGEST --> FUSE --> IDEAL --> SCORE --> REPORT
+    end
+
+    subgraph STORAGE["  S3 Prefix Layout  "]
+      direction LR
+      S_RAW("raw/
+{trip_id}/"):::store
+      S_PROC("processed/
+{trip_id}/"):::store
+      S_FUSED("fused/
+{trip_id}/"):::store
+      S_IDEAL("ideal/
+{trip_id}/"):::store
+      S_SCORE("scores/
+{trip_id}/"):::store
+      S_REPORT("reports/
+{trip_id}/"):::store
+    end
+
+    subgraph VALHALLA_CONTAINER["  Container: Valhalla (self-hosted)  "]
+      VAL("🗺️ Map matching
+OSM tiles bundled
+No external API calls"):::stage
+    end
+
+    INGEST --> S_RAW
+    INGEST --> S_PROC
+    FUSE --> S_FUSED
+    IDEAL --> S_IDEAL
+    SCORE --> S_SCORE
+    REPORT --> S_REPORT
+    IDEAL <--> VAL
+  end
+
+  %% ── Excluded (deliberate non-SoI) ────────────────────────────
+  EKS("❌ EKS
+$72/month
+> $50 ceiling"):::excluded
+  LAMBDA("❌ Lambda
+15-min limit
+day2 = 14.8 min"):::excluded
+  MOBILEAPP("❌ Mobile App
+AWS Console
+covers upload"):::excluded
+
+  %% ── Output ───────────────────────────────────────────────────
+  TIP("💰 Tip Decision
+[Human — outside SoI]
+Passenger decides
+SoI proposes only"):::out
+
+  %% ── Connections ──────────────────────────────────────────────
+  PHONE -->|"records"| IF1
+  IF1 -->|"schema-validated"| INGEST
+  PASSENGER -->|"uploads"| IF2
+  IF2 -->|"EventBridge trigger"| PIPELINE
+  OSM -->|"tiles bundled
+at build time"| VAL
+  PIPELINE -->|"SNS notify"| IF3
+  IF3 -->|"email"| PASSENGER
+  SCORE -->|"score.json"| TIP
+  AWS_PLATFORM -.->|"provides APIs"| SOI
+```
+
+---
+
+### Interface Definitions — Responsibility Boundaries
+
+> When something breaks, these definitions answer: **whose responsibility is it?**
+
+| IF | From → To | Format | SoI owns | External owns |
 |---|---|---|---|---|
-| **IF-1** | Sensor Logger → SoI | Input | 7 CSV files (Location, Accel, Gyro, Gravity, Orientation, Mag, TotalAccel) | CSV schema changes are outside SoI. SoI detects them via schema validation |
-| **IF-2** | Passenger → SoI | Input | Upload to S3 `raw/{trip_id}/` via AWS Console | Upload action is outside SoI. Everything after the upload is SoI's responsibility |
-| **IF-3** | SoI → Passenger | Output | SNS email (score + report.html S3 link + error details on failure) | Email delivery is SNS/SES responsibility. Content accuracy is SoI's responsibility |
-| **IF-4** | SoI → Passenger | Output | `score.json` (aggregate_0_100, tip_pct, config_hash) | Scoring logic is SoI's responsibility. Whether to tip is the passenger's decision — outside SoI |
-| **IF-5** | SoI → Valhalla | Output | GPS trace (GeoJSON) | HTTP request format is SoI's responsibility. Routing algorithm is Valhalla's responsibility |
-| **IF-6** | Valhalla → SoI | Input | Matched route (coordinate sequence, speed limits, estimated time) | Map data accuracy is OSM/Valhalla's responsibility. Interpretation of results is SoI's |
-| **IF-7** | AWS → SoI | Environment | EventBridge, ECS, S3, SNS APIs | AWS service availability is AWS's responsibility. Configuration and usage is SoI's |
+| **IF-1** | Sensor Logger → SoI | 7 CSV files per trip | Schema validation, error detection | CSV format spec, app behaviour |
+| **IF-2** | Passenger → SoI | S3 `raw/{trip_id}/` upload via AWS Console | Everything after upload lands | The upload action itself |
+| **IF-3** | SoI → Passenger | SNS email (score + report link + error details) | Content accuracy, failure notification | Email delivery (SNS/SES) |
+| **IF-4** | SoI → Passenger | `score.json` (aggregate_0_100, tip_pct, config_hash) | Scoring correctness, reproducibility | Whether to act on the tip suggestion |
+| **IF-5** | SoI → Valhalla | GPS trace (GeoJSON) | HTTP request format, retry logic | Routing algorithm correctness |
+| **IF-6** | Valhalla → SoI | Matched route (coordinates, speed limits, time) | Parsing and interpretation | Map data accuracy (OSM) |
+| **IF-7** | AWS → SoI | EventBridge, ECS, S3, SNS APIs | Configuration, deployment, usage | Service availability, regional outages |
 
-### What was deliberately placed outside the boundary
+---
 
-Every exclusion was an explicit decision — not an omission.
+### What Was Deliberately Placed Outside
 
-| Excluded | Why |
-|---|---|
-| **EKS (Kubernetes)** | Control plane costs $72/month, exceeding the $50/month ceiling (VL-2). `py_ekf.py` matches C++ EKF accuracy (VL-1) |
-| **Mobile app** | AWS Console covers the upload workflow with zero additional implementation (+40h saved, VL-4) |
-| **AWS Lambda** | day2 processing takes ~14.8 min — too close to Lambda's 15-min hard limit |
-| **Tip payment** | The passenger decides whether to tip. SoI proposes only |
-| **UKF in cloud** | EKF accuracy is sufficient (VL-1). Adding UKF would add cost and a second task definition |
-| **Uber's platform** | The goal is rider-side transparency. Notifying the driver is out of scope |
-| **Multi-region** | Explicitly listed as a non-goal in PRD §1.4 |
+Every exclusion is a documented decision — not an omission.
 
-### SoI as a black box
+| Excluded | Reason | Alternative used |
+|---|---|---|
+| **EKS / Kubernetes** | Control plane = $72/month > $50 ceiling (VL-2) | ECS Fargate — zero idle cost |
+| **C++ EKF node (cloud)** | EKS required; py_ekf.py matches accuracy (VL-1) | `scripts/py_ekf.py` on Fargate |
+| **AWS Lambda** | day2 = 14.8 min; Lambda hard-caps at 15 min | Fargate — no time limit |
+| **Mobile app** | AWS Console covers the upload; +40h saved (VL-4) | Mobile browser + AWS Console |
+| **Tip payment** | Passenger decides; SoI proposes only | Score + tip % in email |
+| **UKF (cloud)** | EKF accuracy sufficient (VL-1); saves task definition + cost | EKF only |
+| **Driver notification** | Rider-side transparency is the goal; driver-side is out of scope | — |
+| **Multi-region / DR** | Explicit non-goal (PRD §1.4) | — |
 
-Ignoring implementation, the system does exactly one thing:
+---
+
+### Engineering Checklist for Boundary Decisions
+
+Four questions applied to every boundary decision in this project:
+
+**1. "If it breaks, who fixes it?"**
+If the answer is unclear, the boundary is ambiguous.
+*Example: Valhalla map data accuracy → OSM's responsibility. SoI detects anomalies via score regression tests.*
+
+**2. "If something outside changes, what does SoI change?"**
+This defines the interface (IF).
+*Example: If Sensor Logger changes its CSV column names → SoI updates schema validation in `src/data_engine/schemas.py`. Nothing else changes.*
+
+**3. "Why is this inside SoI? What happens if it's outside?"**
+*Valhalla inside: zero API cost, offline, precision control.*
+*Mobile app outside: AWS Console covers it with zero implementation cost.*
+
+**4. "Can this boundary change? If so, what is affected?"**
+Design stable internal interfaces to limit blast radius.
+*Example: EKS → Fargate mid-project. Only the execution layer changed.*
+*S3 prefix layout and `StorageAdapter.from_env()` were unchanged — they were the stable internal interface.*
 
 ```
-INPUT                          SoI                    OUTPUT
-─────────────────────────────────────────────────────────────
-7 Sensor Logger CSVs  ──▶  [ pipeline ]  ──▶  aggregate score 0–100
-trip_id                                         suggested tip %
-                                                report.html
+Boundary change:  EKS (C++ EKF)  →  Fargate (py_ekf.py)
+                        │                    │
+                        ▼                    ▼
+              S3 fused/{trip_id}/fused_ekf.parquet   ← stable
+                        │                    │
+                        ▼                    ▼
+              StorageAdapter.from_env()              ← stable
 ```
 
-The internal stages (ingest → fuse → ideal → score → report) are invisible
-to the actor. The only contract is: *upload CSVs, receive a scored report by email.*
-
-### Why the boundary changed mid-project (and what prevented a rewrite)
-
-The original design placed EKS inside the boundary. A cost estimate during the
-Implementation hypothesis phase revealed the $72/month overage (VL-2).
-EKS was moved outside; `py_ekf.py` replaced the C++ EKF node.
-
-**What limited the blast radius:**
-
-```
-Before change          After change
-─────────────          ────────────
-EKS (C++ EKF)    →    Fargate (py_ekf.py)
-      ↓                      ↓
-S3 fused/{trip_id}/fused_ekf.parquet  ← unchanged
-      ↓                      ↓
-StorageAdapter.from_env()    ← unchanged
-```
-
-The S3 prefix layout and `StorageAdapter` were designed as stable internal interfaces.
-When the EKS boundary was removed, only the execution layer changed — nothing downstream did.
+The S3 prefix design and `StorageAdapter` absorbed the change.
+Nothing downstream (scoring, reporting, SNS) required modification.
 
 ---
 
