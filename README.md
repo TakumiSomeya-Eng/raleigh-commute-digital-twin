@@ -25,7 +25,9 @@ them. This project makes the other side of that ledger visible to the rider.
 
 > This diagram shows **what data flows through the system end-to-end**, independent of deployment environment.  
 > Phase 1 runs this pipeline locally via Docker Compose.  
-> Phase 2 deploys the same containers to AWS EKS.
+> Phase 2 deploys the same pipeline on AWS Fargate (ECS), orchestrated by Step Functions.
+> EKS is intentionally omitted from the MVP: `py_ekf.py` matches C++ EKF accuracy (VL-1)
+> and the EKS control plane exceeds the $50/month cost ceiling (VL-2).
 
 ```mermaid
 flowchart TD
@@ -39,7 +41,8 @@ flowchart TD
   PHONE["Smartphone
   GPS / IMU / baro — recorded as Uber passenger"]:::phoneNode
 
-  subgraph C_ROS2["Container: ros2  (ROS2 Jazzy / C++17)"]
+  subgraph C_ROS2["Phase 1: Container ros2  (ROS2 Jazzy / C++17)
+  Phase 2 MVP: replaced by py_ekf.py on Fargate (VL-1)"]
     GPS["/gps/fix — 1Hz
     IN: raw GPS signal
     OUT: lat/lng · outliers possible (up to 122m)"]:::ros2Node
@@ -81,10 +84,9 @@ flowchart TD
   available immediately after each ride"]):::outNode
   S3[("S3
   real/synthetic / logs")]:::infraNode
-  EKS["EKS
-  3 containers as Kubernetes Pods
-  1 container = 1 Pod
-  orchestrated by Step Functions"]:::infraNode
+  INFRA["Phase 1: Docker Compose (local)
+  Phase 2: ECS Fargate + Step Functions (AWS)
+  EKS omitted from MVP (VL-1, VL-2)"]:::infraNode
 
   PHONE --> GPS & IMU
   ODOM -->|"corrected trajectory"| SYN
@@ -92,7 +94,7 @@ flowchart TD
   VAL -->|"B: ideal road path — geometry · speed limits · est. time (no state vectors)"| SCO
   SCO --> OUT
   OUT -.->|save| S3
-  C_ROS2 & C_PY & C_VAL -.->|deploy| EKS
+  C_ROS2 & C_PY & C_VAL -.->|deploy| INFRA
 ```
 
 ### Scoring Engine — two input types
@@ -108,7 +110,7 @@ The Scoring Engine compares A against B per metric: route deviation, speed vs. l
 
 | Container | Runtime | Role |
 |---|---|---|
-| `ros2` | ROS2 Jazzy / C++17 | EKF sensor fusion — predict (IMU 100Hz) + correct (GPS 1Hz) |
+| `ros2` | ROS2 Jazzy / C++17 | EKF sensor fusion — predict (IMU 100Hz) + correct (GPS 1Hz). Phase 1 only; replaced by `py_ekf.py` in Phase 2 MVP |
 | `python` | Python 3.11 | Synthetic data generation + ride scoring |
 | `valhalla` | gisops/valhalla (self-hosted) | Map matching + AI optimal route (no API cost, offline) |
 
@@ -119,7 +121,7 @@ All three containers share the `rct-net` network and `/workspace`, `/data`, `/ou
 
 | Container | Runtime | Role |
 |---|---|---|
-| `ros2` | ROS2 Jazzy / C++17 | EKF sensor fusion — predict (IMU 100Hz) + correct (GPS 1Hz) |
+| `ros2` | ROS2 Jazzy / C++17 | EKF sensor fusion — predict (IMU 100Hz) + correct (GPS 1Hz). Phase 1 only; replaced by `py_ekf.py` in Phase 2 MVP |
 | `python` | Python 3.11 | Synthetic data generation + ride scoring |
 | `valhalla` | gisops/valhalla (self-hosted) | Map matching + AI optimal route (no API cost, offline) |
 
@@ -174,7 +176,7 @@ All resources deployed to `us-east-1` via Terraform (`infra/terraform/`).
 
 Before the E2E smoke test can pass, the Phase 1 Python code needs three changes:
 
-1. **S3 adapter** — replace local file paths with `boto3` S3 read/write
+1. **S3 adapter** ✅ — `src/storage.py` added; all pipeline modules updated (T7.1–T7.3)
 2. **Docker build** — build `docker/python.Dockerfile` and push to ECR
 3. **E2E validation** — upload day2 CSVs to S3, assert `score.json` within ±2 of baseline 34.8
 
@@ -325,7 +327,7 @@ road-relative lane-change detection (T3.7).
 | P4 | Ideal driver + scoring | 8 | ✅ Complete |
 | P5 | Reporting + Phase 1 validation | 6 | ✅ Complete |
 | **Phase 2 — Infra** | AWS infrastructure (T6.1 – T6.8) | 8 | ✅ Complete |
-| **Phase 2 — Code** | S3 adapter + Docker build + E2E (T7.x) | TBD | 🚧 Next |
+| **Phase 2 — Code** | S3 adapter ✅ + Docker build + E2E (T7.x) | TBD | 🚧 In progress |
 
 ---
 
@@ -340,6 +342,8 @@ src/
   ideal_driver/       Valhalla map-match + trajectory synthesis (P4)
   scoring/            Penalty functions + score.json writer (P4)
   reporting/          Jinja2 report, SVG chart, Folium map, index (P5)
+src/
+  storage.py          S3/local transparent storage adapter (T7.1)
 scripts/
   run_full_pipeline.sh   End-to-end pipeline runner
   py_ekf.py              Python EKF fallback (Phase 2 MVP, VL-1)
