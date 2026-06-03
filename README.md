@@ -20,6 +20,7 @@ limit — and the *driver* still sees five stars unless the rider manually docks
 them. This project makes the other side of that ledger visible to the rider.
 
 ---
+
 ## Architecture — Data Pipeline Overview
 
 > This diagram shows **what data flows through the system end-to-end**, independent of deployment environment.  
@@ -40,52 +41,80 @@ flowchart TD
 
   subgraph C_ROS2["Container: ros2  (ROS2 Jazzy / C++17)"]
     GPS["/gps/fix — 1Hz
-    publishes lat/lng
-    outliers possible (up to 122m)"]:::ros2Node
+    IN: raw GPS signal
+    OUT: lat/lng · outliers possible (up to 122m)"]:::ros2Node
     IMU["/imu/data — 100Hz
-    publishes accel + angular velocity
-    drift accumulates over time"]:::ros2Node
+    IN: raw IMU signal
+    OUT: accel + angular velocity · drift accumulates"]:::ros2Node
     EKF["EKF Node
-    predict at 100Hz via IMU
-    correct at 1Hz via GPS
+    IN: /gps/fix + /imu/data
+    predict 100Hz via IMU · correct 1Hz via GPS
     chi-squared gate rejects outliers"]:::ros2Node
     ODOM["/fused/odom
-    corrected position · velocity
-    heading · uncertainty P_"]:::ros2Node
+    OUT: corrected position · velocity · heading · P_"]:::ros2Node
     GPS & IMU --> EKF --> ODOM
   end
 
   subgraph C_PY["Container: python  (Python 3.11)"]
     SYN["Synthetic Engine
-    extract noise stats from real data
-    generate 100-day equivalent dataset"]:::pyNode
+    IN: corrected trajectory
+    extract noise stats · generate 100-day dataset
+    OUT: actual trajectory
+    position · velocity · heading · brake events"]:::pyNode
     SCO["Scoring Engine
-    actual route vs optimal route
-    compute ride score"]:::pyNode
-    SYN --> SCO
+    IN-A: actual trajectory (state vectors + events)
+    IN-B: ideal road path (geometry only)
+    OUT: ride score per metric
+    route deviation · speed · braking · time"]:::pyNode
+    SYN -->|"A: actual trajectory — state vectors + brake events"| SCO
   end
 
   subgraph C_VAL["Container: valhalla  (self-hosted)"]
     VAL["Map Matching
-    snap GPS trace onto road network
-    compute AI planner optimal route"]:::valNode
+    IN: GPS trace (start to end)
+    OUT: ideal road path geometry
+    coordinate seq · speed limits · est. time
+    no velocity or heading state"]:::valNode
   end
 
   OUT(["Ride Score → Tip Rate
   available immediately after each ride"]):::outNode
   S3[("S3
-  real / synthetic / logs")]:::infraNode
+  real/synthetic / logs")]:::infraNode
   EKS["EKS
   3 containers as Kubernetes Pods
   1 container = 1 Pod
   orchestrated by Step Functions"]:::infraNode
 
   PHONE --> GPS & IMU
-  ODOM --> SYN & VAL
-  VAL --> SCO
+  ODOM -->|"corrected trajectory"| SYN
+  ODOM -->|"GPS trace"| VAL
+  VAL -->|"B: ideal road path — geometry · speed limits · est. time (no state vectors)"| SCO
   SCO --> OUT
   OUT -.->|save| S3
   C_ROS2 & C_PY & C_VAL -.->|deploy| EKS
+```
+
+### Scoring Engine — two input types
+
+| Input | Source | Contains |
+|---|---|---|
+| A — actual trajectory | Synthetic Engine | position · velocity · heading · brake events (state vectors) |
+| B — ideal road path | Valhalla | coordinate sequence · speed limits · estimated time (geometry only, no state vectors) |
+
+The Scoring Engine compares A against B per metric: route deviation, speed vs. limit, braking frequency, and time efficiency.
+
+### Container summary
+
+| Container | Runtime | Role |
+|---|---|---|
+| `ros2` | ROS2 Jazzy / C++17 | EKF sensor fusion — predict (IMU 100Hz) + correct (GPS 1Hz) |
+| `python` | Python 3.11 | Synthetic data generation + ride scoring |
+| `valhalla` | gisops/valhalla (self-hosted) | Map matching + AI optimal route (no API cost, offline) |
+
+All three containers share the `rct-net` network and `/workspace`, `/data`, `/out` mounts.
+
+---
 ```
 
 | Container | Runtime | Role |
