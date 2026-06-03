@@ -20,65 +20,84 @@ limit — and the *driver* still sees five stars unless the rider manually docks
 them. This project makes the other side of that ledger visible to the rider.
 
 ---
+## Architecture — Data Pipeline Overview
 
-## Architecture
+> This diagram shows **what data flows through the system end-to-end**, independent of deployment environment.  
+> Phase 1 runs this pipeline locally via Docker Compose.  
+> Phase 2 deploys the same containers to AWS EKS.
 
-### Phase 1 — Local Pipeline
+```mermaid
+flowchart TD
+  classDef phoneNode fill:#F1F5F9,stroke:#64748B,color:#1E293B
+  classDef ros2Node  fill:#DBEAFE,stroke:#2563EB,color:#1E3A8A
+  classDef pyNode    fill:#DCFCE7,stroke:#16A34A,color:#14532D
+  classDef valNode   fill:#FEF3C7,stroke:#D97706,color:#78350F
+  classDef outNode   fill:#D1FAE5,stroke:#059669,color:#064E3B
+  classDef infraNode fill:#EDE9FE,stroke:#7C3AED,color:#3B0764
 
+  PHONE["Smartphone
+  GPS / IMU / baro — recorded as Uber passenger"]:::phoneNode
+
+  subgraph C_ROS2["Container: ros2  (ROS2 Jazzy / C++17)"]
+    GPS["/gps/fix — 1Hz
+    publishes lat/lng
+    outliers possible (up to 122m)"]:::ros2Node
+    IMU["/imu/data — 100Hz
+    publishes accel + angular velocity
+    drift accumulates over time"]:::ros2Node
+    EKF["EKF Node
+    predict at 100Hz via IMU
+    correct at 1Hz via GPS
+    chi-squared gate rejects outliers"]:::ros2Node
+    ODOM["/fused/odom
+    corrected position · velocity
+    heading · uncertainty P_"]:::ros2Node
+    GPS & IMU --> EKF --> ODOM
+  end
+
+  subgraph C_PY["Container: python  (Python 3.11)"]
+    SYN["Synthetic Engine
+    extract noise stats from real data
+    generate 100-day equivalent dataset"]:::pyNode
+    SCO["Scoring Engine
+    actual route vs optimal route
+    compute ride score"]:::pyNode
+    SYN --> SCO
+  end
+
+  subgraph C_VAL["Container: valhalla  (self-hosted)"]
+    VAL["Map Matching
+    snap GPS trace onto road network
+    compute AI planner optimal route"]:::valNode
+  end
+
+  OUT(["Ride Score → Tip Rate
+  available immediately after each ride"]):::outNode
+  S3[("S3
+  real / synthetic / logs")]:::infraNode
+  EKS["EKS
+  3 containers as Kubernetes Pods
+  1 container = 1 Pod
+  orchestrated by Step Functions"]:::infraNode
+
+  PHONE --> GPS & IMU
+  ODOM --> SYN & VAL
+  VAL --> SCO
+  SCO --> OUT
+  OUT -.->|save| S3
+  C_ROS2 & C_PY & C_VAL -.->|deploy| EKS
 ```
-iPhone (Sensor Logger)
-  └─ Location.csv + Accelerometer.csv + Gyroscope.csv + …
-        │
-        ▼
-  data_engine   ──►  aligned_100hz.parquet
-        │
-        ▼
-  bag_bridge    ──►  trip.mcap  (ROS 2 bag)
-        │
-        ▼
-  localization  ──►  fused_ekf.parquet  (EKF — default)
-  (EKF / UKF)   ──►  fused_ukf.parquet  (UKF — optional)
-        │
-        ├──► evaluation  ──►  rmse_report_ekf.json
-        │
-        ▼
-  ideal_driver  ──►  matched_route.json
-  (Valhalla)    ──►  road_ref.parquet
-                ──►  ideal_speed.parquet
-                ──►  ideal_trajectory.parquet
-        │
-        ▼
-  scoring       ──►  out/{trace}/score.json
-        │
-        ▼
-  reporting     ──►  out/{trace}/report.html   (Jinja2 + SVG + Folium map)
-                ──►  out/reports/index.html    (sortable trip index)
-```
 
-### Phase 2 — AWS Cloud Pipeline
+| Container | Runtime | Role |
+|---|---|---|
+| `ros2` | ROS2 Jazzy / C++17 | EKF sensor fusion — predict (IMU 100Hz) + correct (GPS 1Hz) |
+| `python` | Python 3.11 | Synthetic data generation + ride scoring |
+| `valhalla` | gisops/valhalla (self-hosted) | Map matching + AI optimal route (no API cost, offline) |
 
-```
-iPhone (Sensor Logger)
-  └─ CSV export
-        │
-        ▼
-  S3: rct-data-takumi2026/raw/{trip_id}/      ← upload via AWS Console (mobile)
-        │  S3 PutObject event
-        ▼
-  EventBridge: rct-s3-raw-upload-dev
-        │
-        ▼
-  Step Functions: rct-pipeline-dev (Standard)
-        │
-        ├─ Fargate: ingest   (data_engine)          FR-1
-        ├─ Fargate: fuse     (py_ekf.py)             FR-4, VL-1
-        ├─ Fargate: ideal    (Valhalla)              FR-9
-        ├─ Fargate: score                            FR-10
-        └─ Fargate: report                           FR-11
-                │
-                ▼
-  SNS → Email: score + report.html link + error details
-```
+All three containers share the `rct-net` network and `/workspace`, `/data`, `/out` mounts.
+
+---
+
 
 > **Why no EKS?** The EKS control plane costs $72/month, exceeding the $50/month
 > ceiling (VL-2). `py_ekf.py` achieves identical accuracy to the C++ EKF (VL-1),
