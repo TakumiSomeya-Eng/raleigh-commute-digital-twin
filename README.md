@@ -117,24 +117,6 @@ The Scoring Engine compares A against B per metric: route deviation, speed vs. l
 All three containers share the `rct-net` network and `/workspace`, `/data`, `/out` mounts.
 
 ---
-```
-
-| Container | Runtime | Role |
-|---|---|---|
-| `ros2` | ROS2 Jazzy / C++17 | EKF sensor fusion — predict (IMU 100Hz) + correct (GPS 1Hz). Phase 1 only; replaced by `py_ekf.py` in Phase 2 MVP |
-| `python` | Python 3.11 | Synthetic data generation + ride scoring |
-| `valhalla` | gisops/valhalla (self-hosted) | Map matching + AI optimal route (no API cost, offline) |
-
-All three containers share the `rct-net` network and `/workspace`, `/data`, `/out` mounts.
-
----
-
-
-> **Why no EKS?** The EKS control plane costs $72/month, exceeding the $50/month
-> ceiling (VL-2). `py_ekf.py` achieves identical accuracy to the C++ EKF (VL-1),
-> so the MVP omits EKS entirely.
-
----
 
 ## Development Process
 
