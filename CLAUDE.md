@@ -196,6 +196,7 @@ flat-earth / equirectangular 近似。回廊スパン < 10 km で有効（TRD §
 | P4 | score.json が day2 に対して出力される | ✅ |
 | P5 | docker compose からreport.htmlが30分以内に生成 | ✅ |
 | **Phase 2** | **AWSデプロイ完了・E2E smoke eval green** | 🚧 計画中 |
+| **Phase 3** | **SUMO+OSM合成トリップ + 動画成果物** | ⬜ 次 |
 
 ---
 
@@ -213,3 +214,27 @@ flat-earth / equirectangular 近似。回廊スパン < 10 km で有効（TRD §
 **IaC**: Terraform（`infra/` 以下に実装）
 
 **参照**: `docs/FRD.md` §FR-12、`infra/README.md`
+
+---
+
+## Phase 3 概要（SUMO + OSM）
+
+**ゴール**: Raleigh NC実道路で3種の運転スタイル（calm/normal/aggressive）の
+仮想トリップを生成し、動画で結果を見せる。
+
+**成果物**:
+- 動画A（15秒）: SUMO-GUIで車が走る + パイプラインログ
+- 動画B（15秒）: Foliumマップ軌跡アニメーション + スコア比較
+
+**開発スタイル**: TDD + Claude Code マルチエージェント（4エージェント）
+
+**エージェント構成**:
+| エージェント | 役割 | 使うスキル |
+|---|---|---|
+| Orchestrator | タスク管理・Goゲート | CLAUDE.md + prompts/5 |
+| Impl Agent | sumo_adapter.py・Folium実装 | sumo-osm.md + folium-animation.md |
+| Test Writer Agent | TDDテスト先行作成 | sumo-osm.md + pipeline-testing.md |
+| Bug Hunter Agent | ruff + mypy 静的解析 | pipeline-testing.md |
+| QA Orchestrator | テスト実行・スコア検証 | pipeline-testing.md |
+
+**参照**: `.claude/prompts/5_phase3_sumo_osm.md`、`.claude/skills/sumo-osm.md`
