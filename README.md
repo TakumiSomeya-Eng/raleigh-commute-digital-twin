@@ -522,11 +522,11 @@ end-to-end through the same pipeline used for real Uber trips.
 The goal is to confirm that the pipeline correctly differentiates driving behaviours
 before deploying it to cloud (Phase 2) and to real-time use.
 
-### What Was Built (T8.1 – T8.9)
+### What Was Built (T8.1 – T8.10)
 
 | Task | Deliverable |
 |---|---|
-| **T8.1** OSM → SUMO network | `sumo/net/raleigh.net.xml` (7.3 MB, 301 passenger edges) via `netconvert` |
+| **T8.1** OSM → SUMO network | `sumo/net/raleigh.net.xml` (initial 560 m corridor) via `netconvert` |
 | **T8.2** Driving style definitions | `sumo/styles/*.add.xml` — vType parameters (speedFactor, accel, decel, sigma, lcCooperative) |
 | **T8.2** Route & config | `sumo/routes/*.rou.xml`, `sumo/cfg/*.sumocfg` — 900 s simulation, FCD geo-output |
 | **T8.3** `sumo_adapter.py` | `parse_fcd → add_noise → to_sensor_logger_csvs → convert` — FCD XML to 7 Sensor Logger CSVs |
@@ -536,6 +536,7 @@ before deploying it to cloud (Phase 2) and to real-time use.
 | **T8.8** Executive HTML report | `compare.py` — McKinsey-style Minto Pyramid layout (answer-first, 3 pillars, roadmap) |
 | **T8.8** Evidence.dev dashboard | Interactive SQL + chart dashboard (`C:/evd/`) — penalty heatmap, scorecard, component breakdown |
 | **T8.9** Lint / type clean | ruff + mypy clean across all new modules |
+| **T8.10** Network expansion (Option C) | Expanded OSM bbox → new `raleigh_day2.net.xml` covering full day2 route (~10 km). `duarouter` O-D routing from day2 GPS start/end. Fixed `sumo_adapter` GPS sampling (100 Hz → 1 Hz) to restore EKF initialisation. Rewrote `generate_folium_animation.py`: single merged `TimestampedGeoJson` layer (322 MB → 0.9 MB). |
 
 ### Simulation Parameters
 
@@ -553,11 +554,15 @@ before deploying it to cloud (Phase 2) and to real-time use.
 
 | Driving Style | Score / 100 | Suggested Tip | Rating |
 |---|---|---|---|
-| 🟢 **calm** | **72.7** | 15 % | Fair |
-| 🟡 **normal** | **45.4** | 10 % | Poor |
-| 🔴 **aggressive** | **16.7** | 10 % | Unsafe |
+| 🟢 **calm** | **80.9** | 20 % | Good |
+| 🟡 **normal** | **67.2** | 15 % | Fair |
+| 🔴 **aggressive** | **50.7** | 10 % | Poor |
 
-**Score gap: 56.1 points. Calm delivers 4.4× better safety performance than aggressive.**
+**Score gap: 30.2 points across the full 10 km day2 route. Calm > Normal > Aggressive confirmed.**
+
+> Scores updated in T8.10 after expanding the SUMO network to match the real day2 trip
+> (Saint Mary's St → New Bern Ave, Raleigh NC, ~10 km). Previous scores (72.7 / 45.4 / 16.7)
+> were from a 560 m corridor unrelated to the real trip.
 
 ### Evidence.dev Interactive Dashboard
 
@@ -608,8 +613,6 @@ The penalty heatmap reveals which components drive the score gap:
 - **Synthetic data, not real Uber trips.** Score values are directionally correct but not
   calibrated to real-world distributions. Binary harsh-brake scores (0 vs 100) would be
   continuous in real data.
-- **Route Adherence is not meaningful** for this SUMO run — the ideal trajectory was copied
-  from a different real trip. This should be regenerated from the SUMO route itself.
 - **Phase 2 (real cloud deployment) is the definitive validation.** Phase 3 is a proof of
   concept confirming that the pipeline correctly differentiates three distinct driving styles
   under controlled simulation.
@@ -655,7 +658,42 @@ make score TRACE=sumo_calm
 | P5 | Reporting + Phase 1 validation | 6 | ✅ Complete |
 | **Phase 2 — Infra** | AWS infrastructure (T6.1 – T6.8) | 8 | ✅ Complete |
 | **Phase 2 — Code** | S3 adapter ✅ + Docker build + E2E (T7.x) | TBD | 🚧 In progress |
-| **Phase 3 — SUMO** | Synthetic trip generation + Evidence dashboard (T8.x) | 10 | ✅ Complete |
+| **Phase 3 — SUMO** | Synthetic trip generation + Evidence dashboard (T8.x) | 11 | ✅ Complete |
+
+---
+
+## Next Steps
+
+### Immediate (Phase 2 completion)
+
+| Task | What | Goal |
+|---|---|---|
+| **T7.2** Docker build | Build `docker/python.Dockerfile` → push to ECR | Cloud-runnable image |
+| **T7.3** E2E smoke test | Upload day2 CSVs to S3 → Step Functions → assert `score.json` within ±2 of baseline | Phase 2 gate |
+| **T7.4** RMSE regression | Cloud EKF RMSE ≤ 1.10 × local baseline | CI gate |
+
+### Video deliverables (Phase 3 wrap-up)
+
+| Video | Method | Content |
+|---|---|---|
+| **Video A** (15 s) | SUMO-GUI + OBS / Xbox Game Bar | 3 driving styles racing on Raleigh streets |
+| **Video B** (15 s) | `generate_folium_animation.py` + screen recorder | Animated Folium map with scores |
+
+To record Video A:
+
+```powershell
+sumo-gui -c sumo\cfg\calm_gui.sumocfg   # step-length=1.0, delay=200ms
+# Ctrl+A → zoom fit → press ▶ → record with Xbox Game Bar (Win+G)
+```
+
+### Future (Phase 4 candidates)
+
+| Idea | Value hypothesis |
+|---|---|
+| Collect real Uber trips (≥ 8) | Validate Spearman ρ ≥ 0.6 (PRD S4 — final goal) |
+| Evidence.dev multi-trip dashboard | Compare drivers across trips, time-series score trends |
+| Real-time scoring | Sensor Logger → WebSocket → score display during ride |
+| SUMO parameter calibration | Tune vType against real trip GPS distributions |
 
 ---
 
