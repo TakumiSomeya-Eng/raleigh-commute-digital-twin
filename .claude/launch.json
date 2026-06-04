@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "report-day2",
+      "runtimeExecutable": "py",
+      "runtimeArgs": ["-3.10", "-m", "http.server", "8765", "--directory", "out/day2"],
+      "port": 8765
+    },
+    {
+      "name": "evidence",
+      "runtimeExecutable": "cmd.exe",
+      "runtimeArgs": ["/c", "cd C:\\evd && npm run dev -- --port 3100 --no-open"],
+      "port": 3100
+    }
+  ]
+}
