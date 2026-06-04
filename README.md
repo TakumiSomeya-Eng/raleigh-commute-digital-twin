@@ -566,28 +566,17 @@ the scoring results. It runs locally at **`http://localhost:3101/`** after start
 
 **Dashboard — Executive Scorecard & Aggregate Bar Chart:**
 
-The top section shows BigValue KPIs (calm 72.7, aggressive 16.7, gap 56.1, ratio 4.4×)
-and a bar chart confirming the monotonic ordering calm > normal > aggressive.
+![Executive Scorecard and Aggregate Score by Style](docs/screenshots/Driver_Performance_Evaluation.png)
 
-| Calm Score | Aggressive Score | Gap (pts) | Calm ÷ Aggressive |
-|---|---|---|---|
-| 72.7 | 16.7 | 56.1 | 4.4× |
+The scorecard shows KPIs (calm 72.7, aggressive 16.7, gap 56.1 pts, ratio 4.4×) and a bar
+chart confirming the monotonic ordering calm > normal > aggressive.
 
 **Dashboard — Penalty Heatmap (key visualisation):**
 
-Each cell = penalty score (0 → 100). Green = safe behaviour. Red = dangerous behaviour.
+![Penalty Heatmap by Component](docs/screenshots/Penalty_Heatmap.png)
 
-```
-                 aggressive    calm    normal
-🛑 Harsh Braking    100         —       100
-⚡ Speed Compliance  100         —        15
-📈 Smooth Accel       61         9        22
-↩️ Cornering          100        97       100
-🗺️ Route Adherence    100       100       100
-```
-
-The heatmap makes the story immediately legible:
-**the calm column is predominantly green; the aggressive column is entirely red.**
+Each cell = penalty score (0 → 100). **Green = safe behaviour. Red = dangerous behaviour.**
+The calm column is predominantly green; the aggressive column is entirely red.
 
 To start the Evidence dashboard (requires Node 20 via fnm — see setup below):
 
