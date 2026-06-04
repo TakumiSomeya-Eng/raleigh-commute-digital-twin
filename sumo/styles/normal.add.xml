@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- normal driver vType — from sumo-osm.md T8.2 -->
+<additional>
+    <vType id="normal_driver"
+           speedFactor="1.00"
+           speedDev="0.10"
+           accel="2.6"
+           decel="4.5"
+           sigma="0.5"
+           lcCooperative="0.5"
+           lcSpeedGain="1.0"
+           emergencyDecel="9.0"
+           color="0,0,200"/>
+</additional>

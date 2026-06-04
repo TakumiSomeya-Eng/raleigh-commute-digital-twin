@@ -73,3 +73,12 @@ override.tf
 override.tf.json
 *_override.tf
 *_override.tf.json
+
+# SUMO generated files (large binary/xml — reproducible via T8.1/T8.2)
+sumo/osm/
+sumo/net/
+sumo/fcd/
+
+# Temp files
+src/_tmp_report_preview/
+.claude/worktrees/

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- calm driver vType — from sumo-osm.md T8.2 -->
+<additional>
+    <vType id="calm_driver"
+           speedFactor="0.85"
+           speedDev="0.05"
+           accel="1.5"
+           decel="2.0"
+           sigma="0.1"
+           lcCooperative="1.0"
+           lcSpeedGain="0.5"
+           emergencyDecel="4.0"
+           color="0,200,0"/>
+</additional>

@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<routes xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://sumo.dlr.de/xsd/routes_file.xsd">
+    <vType id="passenger" vClass="passenger" />
+    <vehicle id="0" type="normal_driver" depart="0.00">
+        <route edges="18895236#3 18895236#4 -751115135#0 751115134#0 1388169692 1388169693 751115132#0 1450269401#0 772283082 1388157230#0 1388157230#1 -1388157230#1" />
+    </vehicle>
+</routes>

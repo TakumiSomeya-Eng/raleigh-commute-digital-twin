@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- aggressive driver vType — from sumo-osm.md T8.2 -->
+<additional>
+    <vType id="aggressive_driver"
+           speedFactor="1.20"
+           speedDev="0.20"
+           accel="4.0"
+           decel="7.0"
+           sigma="0.9"
+           lcCooperative="0.0"
+           lcSpeedGain="2.0"
+           emergencyDecel="15.0"
+           color="200,0,0"/>
+</additional>

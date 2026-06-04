@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+               xsi:noNamespaceSchemaLocation="http://sumo.dlr.de/xsd/sumoConfiguration.xsd">
+
+    <input>
+        <net-file value="../net/raleigh.net.xml"/>
+        <route-files value="../routes/calm.rou.xml"/>
+        <additional-files value="../styles/calm.add.xml"/>
+    </input>
+
+    <output>
+        <fcd-output value="../fcd/calm_trip.xml"/>
+        <fcd-output.geo value="true"/>
+    </output>
+
+    <time>
+        <begin value="0"/>
+        <end value="900"/>
+        <step-length value="0.01"/>
+    </time>
+
+    <processing>
+        <no-step-log value="true"/>
+        <time-to-teleport value="-1"/>
+    </processing>
+
+</configuration>

@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!-- generated on 2026-06-03 18:52:43.833129 by Eclipse SUMO randomTrips.py v1_27_0+0000-e238ea04b71
+<configuration>
+    <net-file value="sumo/net/raleigh.net.xml"/>
+    <output-trip-file value="sumo/routes/aggressive_trips.xml"/>
+    <route-file value="sumo/routes/aggressive.rou.xml"/>
+    <vehicle-class value="passenger"/>
+    <edge-permission value="passenger"/>
+    <min-distance value="500.0"/>
+    <end value="900.0"/>
+    <period value="900.0"/>
+</configuration>
+-->
+
+<routes xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://sumo.dlr.de/xsd/routes_file.xsd">
+    <vType id="passenger" vClass="passenger"/>
+    <trip id="0" depart="0.00" from="18895236#3" to="-1388157230#1" type="passenger"/>
+</routes>
