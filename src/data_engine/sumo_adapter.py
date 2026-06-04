@@ -309,21 +309,26 @@ def to_sensor_logger_csvs(
     # ── Write all seven files ──────────────────────────────────────────────────
     paths: dict[str, Path] = {}
 
-    # Location.csv
+    # Location.csv — downsample to ~1 Hz to match real Sensor Logger GPS rate.
+    # ingest marks a 100 Hz tick gps_interpolated=False only within ±50 ms of a
+    # real GPS row; writing at 100 Hz would make every tick a GPS tick and break
+    # the EKF initialisation logic (gps_start never transitions).
+    _gps_step = max(1, round(1.0 / fcd_df["t_s"].diff().median())) if n > 1 else 1
+    gps_idx = np.arange(0, n, _gps_step)
     p = out_dir / "Location.csv"
     pd.DataFrame(
         {
-            "time": time_ns,
-            "latitude": fcd_df["lat"].to_numpy(),
-            "longitude": fcd_df["lon"].to_numpy(),
-            "altitude": np.zeros(n),
-            "speed": fcd_df["speed_mps"].to_numpy(),
-            "bearing": bearing_deg,
-            "horizontalAccuracy": np.full(n, _HORIZ_ACC[style]),
-            "verticalAccuracy": np.full(n, 10.0),
-            "speedAccuracy": np.full(n, 0.5),
-            "bearingAccuracy": np.full(n, 5.0),
-            "floor": np.zeros(n, dtype=np.int64),
+            "time": time_ns[gps_idx],
+            "latitude": fcd_df["lat"].to_numpy()[gps_idx],
+            "longitude": fcd_df["lon"].to_numpy()[gps_idx],
+            "altitude": np.zeros(len(gps_idx)),
+            "speed": fcd_df["speed_mps"].to_numpy()[gps_idx],
+            "bearing": bearing_deg[gps_idx],
+            "horizontalAccuracy": np.full(len(gps_idx), _HORIZ_ACC[style]),
+            "verticalAccuracy": np.full(len(gps_idx), 10.0),
+            "speedAccuracy": np.full(len(gps_idx), 0.5),
+            "bearingAccuracy": np.full(len(gps_idx), 5.0),
+            "floor": np.zeros(len(gps_idx), dtype=np.int64),
         }
     ).to_csv(p, index=False)
     paths["Location.csv"] = p

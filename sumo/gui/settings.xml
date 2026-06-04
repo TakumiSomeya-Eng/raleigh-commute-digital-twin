@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<viewsettings>
+    <viewport x="2641" y="2570" zoom="500"/>
+    <delay value="200"/>
+    <scheme name="real world"/>
+    <vehicles>
+        <vehicleColorer key="0" scheme="given/type color"/>
+    </vehicles>
+</viewsettings>

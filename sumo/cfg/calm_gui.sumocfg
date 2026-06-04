@@ -4,20 +4,15 @@
 
     <input>
         <net-file value="../net/raleigh_day2.net.xml"/>
-        <route-files value="../routes/aggressive.rou.xml"/>
-        <additional-files value="../styles/aggressive.add.xml"/>
+        <route-files value="../routes/calm.rou.xml"/>
+        <additional-files value="../styles/calm.add.xml"/>
         <gui-settings-file value="../gui/settings.xml"/>
     </input>
-
-    <output>
-        <fcd-output value="../fcd/aggressive_trip.xml"/>
-        <fcd-output.geo value="true"/>
-    </output>
 
     <time>
         <begin value="0"/>
         <end value="900"/>
-        <step-length value="0.01"/>
+        <step-length value="1.0"/>
     </time>
 
     <processing>
