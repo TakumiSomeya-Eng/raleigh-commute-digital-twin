@@ -8,7 +8,7 @@ fuse GPS + IMU with an Extended Kalman Filter, synthesise what an ideal driver
 would have done via [Valhalla](https://github.com/valhalla/valhalla) map-matching,
 and score the ride on six objective metrics — then suggest a tip.
 
-**Status:** Phase 1 complete ✅ · Phase 2 infrastructure complete ✅ · Phase 2 E2E pending Docker image 🚧
+**Status:** Phase 1 complete ✅ · Phase 2 infrastructure complete ✅ · Phase 3 SUMO synthetic evaluation complete ✅
 
 ---
 
@@ -23,8 +23,8 @@ them. This project makes the other side of that ledger visible to the rider.
 
 ## Architecture — Data Pipeline Overview
 
-> This diagram shows **what data flows through the system end-to-end**, independent of deployment environment.  
-> Phase 1 runs this pipeline locally via Docker Compose.  
+> This diagram shows **what data flows through the system end-to-end**, independent of deployment environment.
+> Phase 1 runs this pipeline locally via Docker Compose.
 > Phase 2 deploys the same pipeline on AWS Fargate (ECS), orchestrated by Step Functions.
 > EKS is intentionally omitted from the MVP: `py_ekf.py` matches C++ EKF accuracy (VL-1)
 > and the EKS control plane exceeds the $50/month cost ceiling (VL-2).
@@ -117,7 +117,6 @@ The Scoring Engine compares A against B per metric: route deviation, speed vs. l
 All three containers share the `rct-net` network and `/workspace`, `/data`, `/out` mounts.
 
 ---
-
 
 ## System Boundary
 
@@ -509,6 +508,140 @@ road-relative lane-change detection (T3.7).
 
 ---
 
+---
+
+## Phase 3 — SUMO Synthetic Trip Evaluation (T8.x)
+
+### Overview
+
+Phase 3 validates the scoring pipeline against **synthetic driving data** generated
+by [SUMO](https://sumo.dlr.de/) (Simulation of Urban MObility) on the real Raleigh NC
+road network (Saint Mary's Street corridor, OSM data).
+Three driving styles — **calm**, **normal**, and **aggressive** — were simulated and scored
+end-to-end through the same pipeline used for real Uber trips.
+The goal is to confirm that the pipeline correctly differentiates driving behaviours
+before deploying it to cloud (Phase 2) and to real-time use.
+
+### What Was Built (T8.1 – T8.9)
+
+| Task | Deliverable |
+|---|---|
+| **T8.1** OSM → SUMO network | `sumo/net/raleigh.net.xml` (7.3 MB, 301 passenger edges) via `netconvert` |
+| **T8.2** Driving style definitions | `sumo/styles/*.add.xml` — vType parameters (speedFactor, accel, decel, sigma, lcCooperative) |
+| **T8.2** Route & config | `sumo/routes/*.rou.xml`, `sumo/cfg/*.sumocfg` — 900 s simulation, FCD geo-output |
+| **T8.3** `sumo_adapter.py` | `parse_fcd → add_noise → to_sensor_logger_csvs → convert` — FCD XML to 7 Sensor Logger CSVs |
+| **T8.4** Gaussian noise model | GPS (σ = 3/5/8 m by style), IMU accel/gyro, magnetometer — reusing `noise_fit.py` params |
+| **T8.5** TDD test suite | 102 unit tests across 31 groups, all derived from `sumo_adapter_spec.py` contracts |
+| **T8.7** Folium animation helpers | `folium_animation.py` — `TimestampedGeoJson` trajectory + harsh-brake markers |
+| **T8.8** Executive HTML report | `compare.py` — McKinsey-style Minto Pyramid layout (answer-first, 3 pillars, roadmap) |
+| **T8.8** Evidence.dev dashboard | Interactive SQL + chart dashboard (`C:/evd/`) — penalty heatmap, scorecard, component breakdown |
+| **T8.9** Lint / type clean | ruff + mypy clean across all new modules |
+
+### Simulation Parameters
+
+| Parameter | calm | normal | aggressive |
+|---|---|---|---|
+| `speedFactor` | 0.85 | 1.00 | 1.20 |
+| `accel` (m/s²) | 1.5 | 2.6 | 4.0 |
+| `decel` (m/s²) | 2.0 | 4.5 | 7.0 |
+| `sigma` (driver imperfection) | 0.1 | 0.5 | 0.9 |
+| `lcCooperative` | 1.0 | 0.5 | 0.0 |
+| `emergencyDecel` (m/s²) | 4.0 | 9.0 | 15.0 |
+| GPS noise σ | 3.0 m | 5.0 m | 8.0 m |
+
+### Scoring Results
+
+| Driving Style | Score / 100 | Suggested Tip | Rating |
+|---|---|---|---|
+| 🟢 **calm** | **72.7** | 15 % | Fair |
+| 🟡 **normal** | **45.4** | 10 % | Poor |
+| 🔴 **aggressive** | **16.7** | 10 % | Unsafe |
+
+**Score gap: 56.1 points. Calm delivers 4.4× better safety performance than aggressive.**
+
+### Evidence.dev Interactive Dashboard
+
+An interactive dashboard was built using [Evidence.dev](https://evidence.dev/) to visualise
+the scoring results. It runs locally at **`http://localhost:3101/`** after starting the server.
+
+**Dashboard — Executive Scorecard & Aggregate Bar Chart:**
+
+The top section shows BigValue KPIs (calm 72.7, aggressive 16.7, gap 56.1, ratio 4.4×)
+and a bar chart confirming the monotonic ordering calm > normal > aggressive.
+
+| Calm Score | Aggressive Score | Gap (pts) | Calm ÷ Aggressive |
+|---|---|---|---|
+| 72.7 | 16.7 | 56.1 | 4.4× |
+
+**Dashboard — Penalty Heatmap (key visualisation):**
+
+Each cell = penalty score (0 → 100). Green = safe behaviour. Red = dangerous behaviour.
+
+```
+                 aggressive    calm    normal
+🛑 Harsh Braking    100         —       100
+⚡ Speed Compliance  100         —        15
+📈 Smooth Accel       61         9        22
+↩️ Cornering          100        97       100
+🗺️ Route Adherence    100       100       100
+```
+
+The heatmap makes the story immediately legible:
+**the calm column is predominantly green; the aggressive column is entirely red.**
+
+To start the Evidence dashboard (requires Node 20 via fnm — see setup below):
+
+```powershell
+# Export latest scores to Evidence CSV sources
+py -3.10 scripts/export_to_evidence.py
+
+# Start the dashboard (Node 20 required — Node 24 has SvelteKit SSR incompatibility)
+$node20 = "C:\Users\<you>\AppData\Roaming\fnm\node-versions\v20.20.2\installation"
+Start-Process cmd.exe -ArgumentList "/c set PATH=$node20;%PATH% && cd C:\evd && npm run sources && npm run dev -- --port 3101 --no-open"
+# Open http://localhost:3101
+```
+
+### Component-Level Analysis
+
+The penalty heatmap reveals which components drive the score gap:
+
+| Component | Weight | Key Finding |
+|---|---|---|
+| 🛑 Harsh Braking | 20 % | **Binary gap**: calm = 0 (zero events), normal/aggressive = 100 (maximum). Highest coaching leverage. |
+| ⚡ Speed Compliance | 20 % | Calm never exceeds limits. Aggressive at 100% = constant speeding = legal liability. |
+| 📈 Smooth Acceleration | 30 % | Gradient: 9 → 22 → 61. Largest weight component. |
+| ↩️ Cornering Comfort | 15 % | Near-identical across styles (straight corridor). Not a coaching priority for this route. |
+| 🗺️ Route Adherence | 10 % | All 100 — synthetic ideal trajectory copied from day2; spatial comparison not meaningful here. |
+| Lane Changes | 5 % | All 0 — single-lane route, no events detected. |
+
+### Honest Caveats
+
+- **Synthetic data, not real Uber trips.** Score values are directionally correct but not
+  calibrated to real-world distributions. Binary harsh-brake scores (0 vs 100) would be
+  continuous in real data.
+- **Route Adherence is not meaningful** for this SUMO run — the ideal trajectory was copied
+  from a different real trip. This should be regenerated from the SUMO route itself.
+- **Phase 2 (real cloud deployment) is the definitive validation.** Phase 3 is a proof of
+  concept confirming that the pipeline correctly differentiates three distinct driving styles
+  under controlled simulation.
+
+### Pipeline Integration
+
+The SUMO-generated CSVs are format-compatible with the existing pipeline — no modifications
+to `ingest`, `fuse`, `ideal`, `score`, or `report` modules were required.
+
+```bash
+# Generate CSVs from SUMO FCD
+py -3.10 src/data_engine/sumo_adapter.py --fcd sumo/fcd/calm_trip.xml --style calm --out data/sumo_calm
+
+# Run existing pipeline unchanged
+make data  TRACE=sumo_calm
+make fuse  TRACE=sumo_calm FILTER=ekf
+make score TRACE=sumo_calm
+```
+
+---
+
 ## Design documents
 
 | Document | One-line summary |
@@ -533,6 +666,7 @@ road-relative lane-change detection (T3.7).
 | P5 | Reporting + Phase 1 validation | 6 | ✅ Complete |
 | **Phase 2 — Infra** | AWS infrastructure (T6.1 – T6.8) | 8 | ✅ Complete |
 | **Phase 2 — Code** | S3 adapter ✅ + Docker build + E2E (T7.x) | TBD | 🚧 In progress |
+| **Phase 3 — SUMO** | Synthetic trip generation + Evidence dashboard (T8.x) | 10 | ✅ Complete |
 
 ---
 
@@ -540,22 +674,31 @@ road-relative lane-change detection (T3.7).
 
 ```
 src/
-  data_engine/        CSV ingest, noise fitting, synthetic data (P1)
+  data_engine/        CSV ingest, noise fitting, synthetic data, sumo_adapter (P1, P3)
   localization/       C++ EKF/UKF nodes (P2)
   bag_bridge/         Parquet ↔ MCAP conversion (P2)
   evaluation/         RMSE + filter comparison (P3)
   ideal_driver/       Valhalla map-match + trajectory synthesis (P4)
   scoring/            Penalty functions + score.json writer (P4)
-  reporting/          Jinja2 report, SVG chart, Folium map, index (P5)
-src/
+  reporting/          Jinja2 report, Folium animation, comparison report (P5, T8)
   storage.py          S3/local transparent storage adapter (T7.1)
+sumo/
+  styles/             vType definitions — calm / normal / aggressive (T8.2)
+  routes/             randomTrips-generated routes with vType injected (T8.2)
+  cfg/                sumocfg files — FCD geo-output, 900 s simulation (T8.2)
+  osm/                OSM source data — gitignored (large)
+  net/                netconvert output — gitignored (large)
+  fcd/                SUMO FCD output — gitignored (large)
 scripts/
-  run_full_pipeline.sh   End-to-end pipeline runner
-  py_ekf.py              Python EKF fallback (Phase 2 MVP, VL-1)
+  run_full_pipeline.sh      End-to-end pipeline runner
+  py_ekf.py                 Python EKF fallback (Phase 2 MVP, VL-1)
+  export_to_evidence.py     score.json → Evidence.dev CSV sources (T8.8)
 tests/
-  unit/               360 unit tests — run with `make test`
+  unit/               483 unit tests — run with `make test`
   integration/        End-to-end smoke tests (Valhalla required)
-  fixtures/           60-second MCAP slices for fast tests
+  fixtures/
+    sumo/             30-second FCD XML fixtures for sumo_adapter tests (T8.5)
+    tiny_day2_60s/    60-second MCAP slice for EKF/UKF tests
 config/
   scoring.yaml        Component weights and tip thresholds
   ideal.yaml          Valhalla + trajectory synthesis settings
