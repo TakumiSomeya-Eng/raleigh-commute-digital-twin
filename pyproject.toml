@@ -46,6 +46,10 @@ select = [
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["T20"]  # allow print in tests
+# compare.py embeds long HTML strings; line-length and unicode rules don't apply inside templates
+"src/reporting/compare.py" = ["E501", "RUF001", "RUF003"]
+# sumo_adapter.py uses `ET` — the canonical abbreviation for xml.etree.ElementTree
+"src/data_engine/sumo_adapter.py" = ["N817"]
 
 # ── Mypy (strict type checking) ───────────────────────────────────────────────
 [tool.mypy]

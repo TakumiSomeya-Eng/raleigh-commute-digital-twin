@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- 30-second FCD fixture: aggressive driver, Saint Mary's St corridor, Raleigh NC.
+     step-length=1.0 s, 31 timesteps (t=0..30), fcd-output.geo=true (x=lon, y=lat).
+     Harsh-brake event at t=15: delta-speed = -5 m/s in 1 s = 5 m/s^2 > threshold (3.0). -->
+<fcd-export>
+  <timestep time="0.00"><vehicle id="aggressive_0" x="-78.6200" y="35.7700" speed="14.00" angle="0.0"   pos="0.0"   lane="E1_0"/></timestep>
+  <timestep time="1.00"><vehicle id="aggressive_0" x="-78.6197" y="35.7703" speed="15.00" angle="10.0"  pos="14.0"  lane="E1_0"/></timestep>
+  <timestep time="2.00"><vehicle id="aggressive_0" x="-78.6194" y="35.7706" speed="16.00" angle="15.0"  pos="29.0"  lane="E1_0"/></timestep>
+  <timestep time="3.00"><vehicle id="aggressive_0" x="-78.6191" y="35.7709" speed="15.50" angle="20.0"  pos="45.0"  lane="E1_0"/></timestep>
+  <timestep time="4.00"><vehicle id="aggressive_0" x="-78.6188" y="35.7712" speed="14.80" angle="15.0"  pos="60.5"  lane="E1_0"/></timestep>
+  <timestep time="5.00"><vehicle id="aggressive_0" x="-78.6185" y="35.7715" speed="14.00" angle="10.0"  pos="75.3"  lane="E1_0"/></timestep>
+  <timestep time="6.00"><vehicle id="aggressive_0" x="-78.6182" y="35.7718" speed="15.00" angle="8.0"   pos="89.3"  lane="E1_0"/></timestep>
+  <timestep time="7.00"><vehicle id="aggressive_0" x="-78.6179" y="35.7721" speed="16.00" angle="5.0"   pos="104.3" lane="E1_0"/></timestep>
+  <timestep time="8.00"><vehicle id="aggressive_0" x="-78.6176" y="35.7724" speed="17.00" angle="3.0"   pos="120.3" lane="E1_0"/></timestep>
+  <timestep time="9.00"><vehicle id="aggressive_0" x="-78.6173" y="35.7727" speed="17.50" angle="2.0"   pos="137.3" lane="E1_0"/></timestep>
+  <timestep time="10.00"><vehicle id="aggressive_0" x="-78.6170" y="35.7730" speed="17.00" angle="1.0"  pos="154.8" lane="E1_0"/></timestep>
+  <timestep time="11.00"><vehicle id="aggressive_0" x="-78.6167" y="35.7733" speed="16.50" angle="2.0"  pos="171.8" lane="E1_0"/></timestep>
+  <timestep time="12.00"><vehicle id="aggressive_0" x="-78.6164" y="35.7736" speed="16.00" angle="4.0"  pos="188.3" lane="E1_0"/></timestep>
+  <timestep time="13.00"><vehicle id="aggressive_0" x="-78.6161" y="35.7739" speed="15.50" angle="6.0"  pos="204.3" lane="E1_0"/></timestep>
+  <timestep time="14.00"><vehicle id="aggressive_0" x="-78.6158" y="35.7742" speed="15.00" angle="5.0"  pos="219.8" lane="E1_0"/></timestep>
+  <timestep time="15.00"><vehicle id="aggressive_0" x="-78.6157" y="35.7743" speed="10.00" angle="4.0"  pos="229.8" lane="E1_0"/></timestep>
+  <timestep time="16.00"><vehicle id="aggressive_0" x="-78.6156" y="35.7744" speed="12.00" angle="3.0"  pos="239.8" lane="E1_0"/></timestep>
+  <timestep time="17.00"><vehicle id="aggressive_0" x="-78.6153" y="35.7747" speed="14.00" angle="2.0"  pos="251.8" lane="E1_0"/></timestep>
+  <timestep time="18.00"><vehicle id="aggressive_0" x="-78.6150" y="35.7750" speed="15.00" angle="1.0"  pos="265.8" lane="E1_0"/></timestep>
+  <timestep time="19.00"><vehicle id="aggressive_0" x="-78.6147" y="35.7753" speed="14.50" angle="0.0"  pos="280.8" lane="E1_0"/></timestep>
+  <timestep time="20.00"><vehicle id="aggressive_0" x="-78.6144" y="35.7756" speed="14.00" angle="359.0" pos="295.3" lane="E1_0"/></timestep>
+  <timestep time="21.00"><vehicle id="aggressive_0" x="-78.6141" y="35.7759" speed="13.50" angle="358.0" pos="309.3" lane="E1_0"/></timestep>
+  <timestep time="22.00"><vehicle id="aggressive_0" x="-78.6138" y="35.7762" speed="14.00" angle="0.0"  pos="322.8" lane="E1_0"/></timestep>
+  <timestep time="23.00"><vehicle id="aggressive_0" x="-78.6135" y="35.7765" speed="15.00" angle="2.0"  pos="336.8" lane="E1_0"/></timestep>
+  <timestep time="24.00"><vehicle id="aggressive_0" x="-78.6132" y="35.7768" speed="16.00" angle="4.0"  pos="351.8" lane="E1_0"/></timestep>
+  <timestep time="25.00"><vehicle id="aggressive_0" x="-78.6129" y="35.7771" speed="16.50" angle="6.0"  pos="367.8" lane="E1_0"/></timestep>
+  <timestep time="26.00"><vehicle id="aggressive_0" x="-78.6126" y="35.7774" speed="16.00" angle="5.0"  pos="384.3" lane="E1_0"/></timestep>
+  <timestep time="27.00"><vehicle id="aggressive_0" x="-78.6123" y="35.7777" speed="15.50" angle="4.0"  pos="400.3" lane="E1_0"/></timestep>
+  <timestep time="28.00"><vehicle id="aggressive_0" x="-78.6120" y="35.7780" speed="15.00" angle="3.0"  pos="415.8" lane="E1_0"/></timestep>
+  <timestep time="29.00"><vehicle id="aggressive_0" x="-78.6117" y="35.7783" speed="15.50" angle="2.0"  pos="430.8" lane="E1_0"/></timestep>
+  <timestep time="30.00"><vehicle id="aggressive_0" x="-78.6114" y="35.7786" speed="16.00" angle="1.0"  pos="446.3" lane="E1_0"/></timestep>
+</fcd-export>

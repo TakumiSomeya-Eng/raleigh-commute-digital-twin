@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- 30-second FCD fixture: calm driver, Saint Mary's St corridor, Raleigh NC.
+     step-length=1.0 s, 31 timesteps (t=0..30), fcd-output.geo=true (x=lon, y=lat). -->
+<fcd-export>
+  <timestep time="0.00"><vehicle id="calm_0" x="-78.6200" y="35.7700" speed="7.00" angle="0.0"   pos="0.0"   lane="E1_0"/></timestep>
+  <timestep time="1.00"><vehicle id="calm_0" x="-78.6199" y="35.7701" speed="7.10" angle="2.0"   pos="7.0"   lane="E1_0"/></timestep>
+  <timestep time="2.00"><vehicle id="calm_0" x="-78.6198" y="35.7702" speed="7.20" angle="4.0"   pos="14.1"  lane="E1_0"/></timestep>
+  <timestep time="3.00"><vehicle id="calm_0" x="-78.6197" y="35.7703" speed="7.15" angle="6.0"   pos="21.3"  lane="E1_0"/></timestep>
+  <timestep time="4.00"><vehicle id="calm_0" x="-78.6196" y="35.7704" speed="7.00" angle="5.0"   pos="28.5"  lane="E1_0"/></timestep>
+  <timestep time="5.00"><vehicle id="calm_0" x="-78.6195" y="35.7705" speed="6.90" angle="4.0"   pos="35.5"  lane="E1_0"/></timestep>
+  <timestep time="6.00"><vehicle id="calm_0" x="-78.6194" y="35.7706" speed="7.05" angle="3.0"   pos="42.4"  lane="E1_0"/></timestep>
+  <timestep time="7.00"><vehicle id="calm_0" x="-78.6193" y="35.7707" speed="7.10" angle="2.0"   pos="49.5"  lane="E1_0"/></timestep>
+  <timestep time="8.00"><vehicle id="calm_0" x="-78.6192" y="35.7708" speed="7.20" angle="1.0"   pos="56.6"  lane="E1_0"/></timestep>
+  <timestep time="9.00"><vehicle id="calm_0" x="-78.6191" y="35.7709" speed="7.30" angle="0.5"   pos="63.8"  lane="E1_0"/></timestep>
+  <timestep time="10.00"><vehicle id="calm_0" x="-78.6190" y="35.7710" speed="7.25" angle="0.0"  pos="71.1"  lane="E1_0"/></timestep>
+  <timestep time="11.00"><vehicle id="calm_0" x="-78.6189" y="35.7711" speed="7.10" angle="1.0"  pos="78.4"  lane="E1_0"/></timestep>
+  <timestep time="12.00"><vehicle id="calm_0" x="-78.6188" y="35.7712" speed="7.00" angle="2.0"  pos="85.5"  lane="E1_0"/></timestep>
+  <timestep time="13.00"><vehicle id="calm_0" x="-78.6187" y="35.7713" speed="6.95" angle="3.0"  pos="92.5"  lane="E1_0"/></timestep>
+  <timestep time="14.00"><vehicle id="calm_0" x="-78.6186" y="35.7714" speed="7.00" angle="2.5"  pos="99.5"  lane="E1_0"/></timestep>
+  <timestep time="15.00"><vehicle id="calm_0" x="-78.6185" y="35.7715" speed="7.10" angle="2.0"  pos="106.5" lane="E1_0"/></timestep>
+  <timestep time="16.00"><vehicle id="calm_0" x="-78.6184" y="35.7716" speed="7.20" angle="1.5"  pos="113.6" lane="E1_0"/></timestep>
+  <timestep time="17.00"><vehicle id="calm_0" x="-78.6183" y="35.7717" speed="7.25" angle="1.0"  pos="120.8" lane="E1_0"/></timestep>
+  <timestep time="18.00"><vehicle id="calm_0" x="-78.6182" y="35.7718" speed="7.20" angle="0.5"  pos="128.1" lane="E1_0"/></timestep>
+  <timestep time="19.00"><vehicle id="calm_0" x="-78.6181" y="35.7719" speed="7.10" angle="0.0"  pos="135.3" lane="E1_0"/></timestep>
+  <timestep time="20.00"><vehicle id="calm_0" x="-78.6180" y="35.7720" speed="7.00" angle="359.5" pos="142.4" lane="E1_0"/></timestep>
+  <timestep time="21.00"><vehicle id="calm_0" x="-78.6179" y="35.7721" speed="6.95" angle="359.0" pos="149.4" lane="E1_0"/></timestep>
+  <timestep time="22.00"><vehicle id="calm_0" x="-78.6178" y="35.7722" speed="7.00" angle="0.0"  pos="156.4" lane="E1_0"/></timestep>
+  <timestep time="23.00"><vehicle id="calm_0" x="-78.6177" y="35.7723" speed="7.05" angle="1.0"  pos="163.4" lane="E1_0"/></timestep>
+  <timestep time="24.00"><vehicle id="calm_0" x="-78.6176" y="35.7724" speed="7.10" angle="2.0"  pos="170.5" lane="E1_0"/></timestep>
+  <timestep time="25.00"><vehicle id="calm_0" x="-78.6175" y="35.7725" speed="7.15" angle="3.0"  pos="177.6" lane="E1_0"/></timestep>
+  <timestep time="26.00"><vehicle id="calm_0" x="-78.6174" y="35.7726" speed="7.10" angle="2.5"  pos="184.8" lane="E1_0"/></timestep>
+  <timestep time="27.00"><vehicle id="calm_0" x="-78.6173" y="35.7727" speed="7.05" angle="2.0"  pos="191.9" lane="E1_0"/></timestep>
+  <timestep time="28.00"><vehicle id="calm_0" x="-78.6172" y="35.7728" speed="7.00" angle="1.5"  pos="199.0" lane="E1_0"/></timestep>
+  <timestep time="29.00"><vehicle id="calm_0" x="-78.6171" y="35.7729" speed="7.05" angle="1.0"  pos="206.0" lane="E1_0"/></timestep>
+  <timestep time="30.00"><vehicle id="calm_0" x="-78.6170" y="35.7730" speed="7.10" angle="0.5"  pos="213.1" lane="E1_0"/></timestep>
+</fcd-export>
