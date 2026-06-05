@@ -227,18 +227,24 @@ def make_reference_path(
     """
     from data_engine.parquet_io import write_parquet
     from data_engine.schemas import ReferencePath
+    from storage import StorageAdapter
 
     from ideal_driver.speed_limits import SpeedLimitLookup
 
-    matched_path = out_dir / trace / "route_matched.parquet"
-    if not matched_path.exists():
-        sys.stderr.write(
-            f"ERROR: {matched_path} not found -- run `make ideal TRACE={trace}` first.\n"
-        )
-        return 1
+    store = StorageAdapter.from_env(out_dir=out_dir)
 
-    _log("FR-9.3 ref", f"loading matched route from {matched_path}")
-    route_matched = pd.read_parquet(matched_path)
+    if store.is_s3:
+        _log("FR-9.3 ref", "loading route_matched from S3")
+        route_matched = store.read_parquet("ideal", trace, "route_matched.parquet")
+    else:
+        matched_path = out_dir / trace / "route_matched.parquet"
+        if not matched_path.exists():
+            sys.stderr.write(
+                f"ERROR: {matched_path} not found -- run `make ideal TRACE={trace}` first.\n"
+            )
+            return 1
+        _log("FR-9.3 ref", f"loading matched route from {matched_path}")
+        route_matched = pd.read_parquet(matched_path)
 
     # Load path config
     with open(config_path, encoding="utf-8") as fh:
@@ -273,9 +279,13 @@ def make_reference_path(
     total_len = float(df["s_m"].iloc[-1])
     _log("FR-9.3 ref", f"reference path: {n_pts} points, {total_len:.1f} m total")
 
-    out_path = out_dir / trace / "reference_path.parquet"
-    write_parquet(df, out_path, ReferencePath, trip_id=trace)
-    _log("FR-9.3 ref", f"wrote {out_path} ({out_path.stat().st_size} bytes)")
+    if store.is_s3:
+        store.write_parquet(df, "ideal", trace, "reference_path.parquet")
+        _log("FR-9.3 ref", f"uploaded ideal/{trace}/reference_path.parquet to S3")
+    else:
+        out_path = out_dir / trace / "reference_path.parquet"
+        write_parquet(df, out_path, ReferencePath, trip_id=trace)
+        _log("FR-9.3 ref", f"wrote {out_path} ({out_path.stat().st_size} bytes)")
     return 0
 
 

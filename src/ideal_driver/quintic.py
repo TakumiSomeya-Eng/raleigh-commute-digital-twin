@@ -320,19 +320,25 @@ def make_ideal_trajectory(
     """
     from data_engine.parquet_io import write_parquet
     from data_engine.schemas import IdealTrajectory
+    from storage import StorageAdapter
 
-    ref_path_file = out_dir / trace / "reference_path.parquet"
-    ideal_speed_file = out_dir / trace / "ideal_speed.parquet"
+    store = StorageAdapter.from_env(out_dir=out_dir)
 
-    for path in (ref_path_file, ideal_speed_file):
-        if not path.exists():
-            sys.stderr.write(f"ERROR: {path} not found -- run earlier pipeline stages.\n")
-            return 1
-
-    _log("FR-9.5 traj", f"loading ref_path from {ref_path_file}")
-    ref_path = pd.read_parquet(ref_path_file)
-    _log("FR-9.5 traj", f"loading ideal_speed from {ideal_speed_file}")
-    ideal_speed = pd.read_parquet(ideal_speed_file)
+    if store.is_s3:
+        _log("FR-9.5 traj", "loading reference_path and ideal_speed from S3")
+        ref_path = store.read_parquet("ideal", trace, "reference_path.parquet")
+        ideal_speed = store.read_parquet("ideal", trace, "ideal_speed.parquet")
+    else:
+        ref_path_file = out_dir / trace / "reference_path.parquet"
+        ideal_speed_file = out_dir / trace / "ideal_speed.parquet"
+        for path in (ref_path_file, ideal_speed_file):
+            if not path.exists():
+                sys.stderr.write(f"ERROR: {path} not found -- run earlier pipeline stages.\n")
+                return 1
+        _log("FR-9.5 traj", f"loading ref_path from {ref_path_file}")
+        ref_path = pd.read_parquet(ref_path_file)
+        _log("FR-9.5 traj", f"loading ideal_speed from {ideal_speed_file}")
+        ideal_speed = pd.read_parquet(ideal_speed_file)
 
     with open(config_path, encoding="utf-8") as fh:
         cfg = yaml.safe_load(fh)
@@ -354,9 +360,13 @@ def make_ideal_trajectory(
         f"{n_pts} points, T_total={t_total:.1f} s, v_mean={df['v_mps'].mean():.1f} m/s",
     )
 
-    out_path = out_dir / trace / "ideal_trajectory.parquet"
-    write_parquet(df, out_path, IdealTrajectory, trip_id=trace)
-    _log("FR-9.5 traj", f"wrote {out_path} ({out_path.stat().st_size} bytes)")
+    if store.is_s3:
+        store.write_parquet(df, "ideal", trace, "ideal_trajectory.parquet")
+        _log("FR-9.5 traj", f"uploaded ideal/{trace}/ideal_trajectory.parquet to S3")
+    else:
+        out_path = out_dir / trace / "ideal_trajectory.parquet"
+        write_parquet(df, out_path, IdealTrajectory, trip_id=trace)
+        _log("FR-9.5 traj", f"wrote {out_path} ({out_path.stat().st_size} bytes)")
     return 0
 
 

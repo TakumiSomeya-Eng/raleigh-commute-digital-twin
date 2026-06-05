@@ -232,16 +232,22 @@ def make_ideal_speed(
     """
     from data_engine.parquet_io import write_parquet
     from data_engine.schemas import IdealSpeed
+    from storage import StorageAdapter
 
-    ref_path_file = out_dir / trace / "reference_path.parquet"
-    if not ref_path_file.exists():
-        sys.stderr.write(
-            f"ERROR: {ref_path_file} not found -- run `make ref TRACE={trace}` first.\n"
-        )
-        return 1
+    store = StorageAdapter.from_env(out_dir=out_dir)
 
-    _log("FR-9.4 speed", f"loading reference path from {ref_path_file}")
-    ref_path = pd.read_parquet(ref_path_file)
+    if store.is_s3:
+        _log("FR-9.4 speed", "loading reference_path from S3")
+        ref_path = store.read_parquet("ideal", trace, "reference_path.parquet")
+    else:
+        ref_path_file = out_dir / trace / "reference_path.parquet"
+        if not ref_path_file.exists():
+            sys.stderr.write(
+                f"ERROR: {ref_path_file} not found -- run `make ref TRACE={trace}` first.\n"
+            )
+            return 1
+        _log("FR-9.4 speed", f"loading reference path from {ref_path_file}")
+        ref_path = pd.read_parquet(ref_path_file)
 
     with open(config_path, encoding="utf-8") as fh:
         cfg = yaml.safe_load(fh)
@@ -273,9 +279,13 @@ def make_ideal_speed(
         f"{n_pts} points, v_mean={v_mean:.1f} v_min={v_min_out:.1f} v_max={v_max_out:.1f} m/s",
     )
 
-    out_path = out_dir / trace / "ideal_speed.parquet"
-    write_parquet(df, out_path, IdealSpeed, trip_id=trace)
-    _log("FR-9.4 speed", f"wrote {out_path} ({out_path.stat().st_size} bytes)")
+    if store.is_s3:
+        store.write_parquet(df, "ideal", trace, "ideal_speed.parquet")
+        _log("FR-9.4 speed", f"uploaded ideal/{trace}/ideal_speed.parquet to S3")
+    else:
+        out_path = out_dir / trace / "ideal_speed.parquet"
+        write_parquet(df, out_path, IdealSpeed, trip_id=trace)
+        _log("FR-9.4 speed", f"wrote {out_path} ({out_path.stat().st_size} bytes)")
     return 0
 
 
