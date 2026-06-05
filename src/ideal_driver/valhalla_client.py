@@ -413,7 +413,10 @@ def _build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> None:
     args = _build_parser().parse_args(argv)
     code = map_match(args.trace, args.out_dir, args.config, args.url)
-    sys.exit(code)
+    if code != 0:
+        sys.exit(code)
+    # Do NOT call sys.exit(0) — would abort the caller when invoked as part of
+    # the 'run' sequence in ideal_driver/__main__.py.
 
 
 if __name__ == "__main__":

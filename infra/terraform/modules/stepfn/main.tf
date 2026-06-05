@@ -83,6 +83,24 @@ resource "aws_security_group" "fargate" {
     description = "HTTPS to S3, ECR, CloudWatch"
   }
 
+  # Allow ideal task to reach Valhalla (port 8002) within the same security group
+  egress {
+    from_port = 8002
+    to_port   = 8002
+    protocol  = "tcp"
+    self      = true
+    description = "HTTP to Valhalla routing service (same SG)"
+  }
+
+  # Allow Valhalla to accept connections from pipeline tasks (same security group)
+  ingress {
+    from_port = 8002
+    to_port   = 8002
+    protocol  = "tcp"
+    self      = true
+    description = "Valhalla port 8002 from pipeline tasks (same SG)"
+  }
+
   tags = local.common_tags
 }
 

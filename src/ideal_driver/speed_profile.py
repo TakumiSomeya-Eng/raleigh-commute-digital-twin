@@ -301,7 +301,8 @@ def _build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> None:
     args = _build_parser().parse_args(argv)
     code = make_ideal_speed(args.trace, args.out_dir, args.config)
-    sys.exit(code)
+    if code != 0:
+        sys.exit(code)
 
 
 if __name__ == "__main__":

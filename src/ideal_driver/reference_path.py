@@ -175,7 +175,7 @@ def build_reference_path(
     # 6. Curvature kappa = d(psi)/d(s), smoothed to remove kinks
     # ----------------------------------------------------------------
     curvature_raw = np.gradient(heading_unwrapped, s_new)
-    window_pts = max(1, int(round(curvature_smooth_window_m / resample_step_m)))
+    window_pts = max(1, round(curvature_smooth_window_m / resample_step_m))
     curvature = uniform_filter1d(curvature_raw, size=window_pts, mode="nearest")
 
     # Normalise heading to [-pi, pi]
@@ -317,7 +317,8 @@ def main(argv: list[str] | None = None) -> None:
         args.speed_limits,
         skip_overpass=args.skip_overpass,
     )
-    sys.exit(code)
+    if code != 0:
+        sys.exit(code)
 
 
 if __name__ == "__main__":
