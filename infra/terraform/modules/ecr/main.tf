@@ -1,11 +1,11 @@
-# ECR repository for the Python worker image (FR-12.2, MVP: python-worker only)
+# ECR repositories for the pipeline images (FR-12.2)
 #
-# ros2-worker is intentionally omitted (VL-1: py_ekf.py == C++ EKF accuracy,
-# VL-2: EKS control plane $72/month > $50 cost ceiling).
-# Add ros2-worker here when EKS is introduced post-MVP.
+# python-worker: ingest / fuse / ideal / score / report stages
+# valhalla:      Valhalla routing engine (always-on ECS service, ~$42/month)
 #
-# Estimated cost: $0 for empty repo; ~$0.10/GB/month once images are pushed.
-# A typical python-worker image is ~1.5 GB → ~$0.15/month.
+# ros2-worker is intentionally omitted (VL-1/VL-2).
+#
+# Estimated cost: ~$0.15/month per image (1.5 GB python-worker; ~$0.20/month 2 GB valhalla).
 
 locals {
   repo_name = "rct/python-worker"
@@ -59,6 +59,48 @@ resource "aws_ecr_lifecycle_policy" "python_worker" {
           tagStatus   = "any"
           countType   = "imageCountMoreThan"
           countNumber = 10
+        }
+        action = { type = "expire" }
+      }
+    ]
+  })
+}
+
+# ── Valhalla ECR repository ───────────────────────────────────────────────────
+resource "aws_ecr_repository" "valhalla" {
+  name                 = "rct/valhalla"
+  image_tag_mutability = "MUTABLE"
+
+  image_scanning_configuration {
+    scan_on_push = true
+  }
+
+  tags = local.common_tags
+}
+
+resource "aws_ecr_lifecycle_policy" "valhalla" {
+  repository = aws_ecr_repository.valhalla.name
+
+  policy = jsonencode({
+    rules = [
+      {
+        rulePriority = 1
+        description  = "Expire untagged images after 1 day"
+        selection = {
+          tagStatus   = "untagged"
+          countType   = "sinceImagePushed"
+          countUnit   = "days"
+          countNumber = 1
+        }
+        action = { type = "expire" }
+      },
+      {
+        rulePriority = 2
+        description  = "Keep only the 5 most recent tagged images"
+        selection = {
+          tagStatus   = "any"
+          countType   = "imageCountMoreThan"
+          countNumber = 5
         }
         action = { type = "expire" }
       }

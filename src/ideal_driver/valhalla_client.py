@@ -51,7 +51,9 @@ import yaml
 # Constants
 # ---------------------------------------------------------------------------
 
-_DEFAULT_URL = "http://localhost:8002"
+# VALHALLA_URL env var overrides default (used in ECS where Valhalla runs as a
+# separate always-on service; see infra/terraform/modules/ecs/main.tf).
+_DEFAULT_URL = os.environ.get("VALHALLA_URL", "http://localhost:8002")
 _SUBSAMPLE_HZ = 5.0  # input rate to Meili (keeps payload small)
 _CHUNK_SIZE = 2000  # max shape points per Meili request
 _CHUNK_OVERLAP = 20  # overlap to handle boundary edges cleanly

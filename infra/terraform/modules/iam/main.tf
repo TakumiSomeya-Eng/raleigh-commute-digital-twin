@@ -189,7 +189,7 @@ resource "aws_iam_role_policy" "fargate_execution" {
           "ecr:GetDownloadUrlForLayer",
           "ecr:BatchCheckLayerAvailability",
         ]
-        Resource = [var.ecr_repository_arn]
+        Resource = [var.ecr_repository_arn, var.valhalla_ecr_repository_arn]
       },
       # CloudWatch Logs: write container stdout/stderr
       {

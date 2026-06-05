@@ -46,23 +46,27 @@ module "ecr" {
 module "iam" {
   source = "../../modules/iam"
 
-  env                = "dev"
-  data_bucket_arn    = module.s3.bucket_arn
-  ecr_repository_arn = module.ecr.python_worker_repository_arn
-  aws_account_id     = var.aws_account_id
-  aws_region         = var.region
+  env                         = "dev"
+  data_bucket_arn             = module.s3.bucket_arn
+  ecr_repository_arn          = module.ecr.python_worker_repository_arn
+  valhalla_ecr_repository_arn = module.ecr.valhalla_repository_arn
+  aws_account_id              = var.aws_account_id
+  aws_region                  = var.region
 }
 
 module "ecs" {
   source = "../../modules/ecs"
 
-  env                = "dev"
-  aws_region         = var.region
-  aws_account_id     = var.aws_account_id
-  ecr_repository_url = module.ecr.python_worker_repository_url
-  task_role_arn      = module.iam.fargate_task_role_arn
-  execution_role_arn = module.iam.fargate_execution_role_arn
-  data_bucket_name   = module.s3.bucket_name
+  env                         = "dev"
+  aws_region                  = var.region
+  aws_account_id              = var.aws_account_id
+  ecr_repository_url          = module.ecr.python_worker_repository_url
+  valhalla_ecr_repository_url = module.ecr.valhalla_repository_url
+  task_role_arn               = module.iam.fargate_task_role_arn
+  execution_role_arn          = module.iam.fargate_execution_role_arn
+  data_bucket_name            = module.s3.bucket_name
+  subnet_ids                  = var.subnet_ids
+  security_group_ids          = [module.stepfn.fargate_security_group_id]
 }
 
 module "stepfn" {

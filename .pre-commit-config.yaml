@@ -37,10 +37,14 @@ repos:
         stages: [manual]
 
   # -- Dockerfile: hadolint (TRD sec.4.7, hadolint 2.12.x) ---------------------
+  # hadolint-docker requires Docker Desktop; moved to manual stage because
+  # Docker Desktop is not reliably available in this environment.
+  # Run manually: pre-commit run --hook-stage manual hadolint-docker
   - repo: https://github.com/hadolint/hadolint
     rev: v2.12.0
     hooks:
       - id: hadolint-docker
+        stages: [manual]
 
   # -- Markdown: markdownlint-cli2 (TRD sec.4.7, CommonMark) -------------------
   - repo: https://github.com/DavidAnson/markdownlint-cli2

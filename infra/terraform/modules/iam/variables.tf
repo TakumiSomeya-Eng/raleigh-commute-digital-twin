@@ -20,6 +20,11 @@ variable "ecr_repository_arn" {
   type        = string
 }
 
+variable "valhalla_ecr_repository_arn" {
+  description = "ARN of the rct/valhalla ECR repository (from module.ecr.valhalla_repository_arn)."
+  type        = string
+}
+
 variable "github_org" {
   description = "GitHub organisation or username (e.g. TakumiSomeya-Eng)."
   type        = string

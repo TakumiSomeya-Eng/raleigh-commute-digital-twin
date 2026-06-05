@@ -112,11 +112,17 @@ resource "aws_ecs_task_definition" "stage" {
 
       # Pipeline stage receives trip_id and bucket via environment variables.
       # Step Functions injects TRIP_ID at runtime (see stepfn module).
-      environment = [
-        { name = "S3_BUCKET", value = var.data_bucket_name },
-        { name = "AWS_DEFAULT_REGION", value = var.aws_region },
-        { name = "STAGE", value = each.key },
-      ]
+      environment = concat(
+        [
+          { name = "S3_BUCKET", value = var.data_bucket_name },
+          { name = "AWS_DEFAULT_REGION", value = var.aws_region },
+          { name = "STAGE", value = each.key },
+        ],
+        # The ideal stage calls Valhalla for map-matching; inject its DNS name.
+        each.key == "ideal" ? [
+          { name = "VALHALLA_URL", value = "http://valhalla.${local.cluster_name}.local:8002" }
+        ] : []
+      )
 
       # stdout/stderr -> CloudWatch Logs
       logConfiguration = {
@@ -136,4 +142,112 @@ resource "aws_ecs_task_definition" "stage" {
   ])
 
   tags = merge(local.common_tags, { Stage = each.key })
+}
+
+# ── Cloud Map — private DNS namespace for service discovery ───────────────────
+# Valhalla is reachable at http://valhalla.rct-dev.local:8002 from any ECS task
+# in the same VPC.
+
+resource "aws_service_discovery_private_dns_namespace" "rct" {
+  name        = "${local.cluster_name}.local"
+  description = "Private DNS for RCT ECS services (Valhalla map-matching)"
+  vpc         = data.aws_vpc.default.id
+
+  tags = local.common_tags
+}
+
+resource "aws_service_discovery_service" "valhalla" {
+  name = "valhalla"
+
+  dns_config {
+    namespace_id = aws_service_discovery_private_dns_namespace.rct.id
+
+    dns_records {
+      ttl  = 10
+      type = "A"
+    }
+
+    routing_policy = "MULTIVALUE"
+  }
+
+  health_check_custom_config {
+    failure_threshold = 1
+  }
+
+  tags = local.common_tags
+}
+
+# Use the default VPC (same one the Fargate tasks run in)
+data "aws_vpc" "default" {
+  default = true
+}
+
+# ── Valhalla Task Definition ──────────────────────────────────────────────────
+# Always-on ECS Service; ~$42/month for 1 vCPU / 4 GB.
+# Tiles are downloaded from S3 on container startup (~30s).
+
+resource "aws_ecs_task_definition" "valhalla" {
+  family                   = "rct-valhalla-${var.env}"
+  requires_compatibilities = ["FARGATE"]
+  network_mode             = "awsvpc"
+  cpu                      = 1024
+  memory                   = 4096
+  task_role_arn            = var.task_role_arn
+  execution_role_arn       = var.execution_role_arn
+
+  container_definitions = jsonencode([
+    {
+      name    = "rct-valhalla"
+      image   = "${var.valhalla_ecr_repository_url}:latest"
+      command = []
+
+      environment = [
+        { name = "S3_BUCKET", value = var.data_bucket_name },
+        { name = "AWS_DEFAULT_REGION", value = var.aws_region },
+      ]
+
+      portMappings = [
+        { containerPort = 8002, protocol = "tcp" }
+      ]
+
+      logConfiguration = {
+        logDriver = "awslogs"
+        options = {
+          "awslogs-group"         = local.log_group
+          "awslogs-region"        = var.aws_region
+          "awslogs-stream-prefix" = "valhalla"
+        }
+      }
+
+      essential = true
+    }
+  ])
+
+  tags = merge(local.common_tags, { Stage = "valhalla" })
+}
+
+# ── Valhalla ECS Service (always-on) ─────────────────────────────────────────
+
+resource "aws_ecs_service" "valhalla" {
+  name            = "rct-valhalla-${var.env}"
+  cluster         = aws_ecs_cluster.main.id
+  task_definition = aws_ecs_task_definition.valhalla.arn
+  desired_count   = 1
+  launch_type     = "FARGATE"
+
+  # Allow in-place replacement during deployments
+  deployment_minimum_healthy_percent = 0
+  deployment_maximum_percent         = 100
+
+  network_configuration {
+    subnets          = var.subnet_ids
+    security_groups  = var.security_group_ids
+    assign_public_ip = true
+  }
+
+  service_registries {
+    registry_arn = aws_service_discovery_service.valhalla.arn
+  }
+
+  tags = merge(local.common_tags, { Stage = "valhalla" })
 }

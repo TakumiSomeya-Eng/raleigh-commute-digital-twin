@@ -41,6 +41,21 @@ variable "data_bucket_name" {
   type        = string
 }
 
+variable "valhalla_ecr_repository_url" {
+  description = "Full ECR URL for the Valhalla image (from module.ecr.valhalla_repository_url)."
+  type        = string
+}
+
+variable "subnet_ids" {
+  description = "List of VPC subnet IDs for the Valhalla ECS service."
+  type        = list(string)
+}
+
+variable "security_group_ids" {
+  description = "List of security group IDs for the Valhalla ECS service."
+  type        = list(string)
+}
+
 variable "tags" {
   description = "Additional tags merged onto every resource."
   type        = map(string)
