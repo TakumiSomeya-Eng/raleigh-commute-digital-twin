@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import argparse
 import datetime
+import os
 import sys
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -285,7 +286,12 @@ def make_reference_path(
 
 def _build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description="Extract road centerline reference path (FR-9.3)")
-    p.add_argument("--trace", required=True, help="trace name (e.g. day2)")
+    p.add_argument(
+        "--trace",
+        default=os.environ.get("TRIP_ID"),
+        required=not os.environ.get("TRIP_ID"),
+        help="trace name (e.g. day2) (falls back to TRIP_ID env var in ECS)",
+    )
     p.add_argument("--out-dir", type=Path, default=Path("out"))
     p.add_argument(
         "--config",

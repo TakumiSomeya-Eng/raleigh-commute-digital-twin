@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import argparse
 import datetime
+import os
 import sys
 from pathlib import Path
 
@@ -350,7 +351,7 @@ def make_ideal_trajectory(
     n_pts = len(df)
     _log(
         "FR-9.5 traj",
-        f"{n_pts} points, T_total={t_total:.1f} s, " f"v_mean={df['v_mps'].mean():.1f} m/s",
+        f"{n_pts} points, T_total={t_total:.1f} s, v_mean={df['v_mps'].mean():.1f} m/s",
     )
 
     out_path = out_dir / trace / "ideal_trajectory.parquet"
@@ -366,7 +367,12 @@ def make_ideal_trajectory(
 
 def _build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description="Synthesise ideal trajectory (FR-9.5)")
-    p.add_argument("--trace", required=True, help="trace name (e.g. day2)")
+    p.add_argument(
+        "--trace",
+        default=os.environ.get("TRIP_ID"),
+        required=not os.environ.get("TRIP_ID"),
+        help="trace name (e.g. day2) (falls back to TRIP_ID env var in ECS)",
+    )
     p.add_argument("--out-dir", type=Path, default=Path("out"))
     p.add_argument(
         "--config",

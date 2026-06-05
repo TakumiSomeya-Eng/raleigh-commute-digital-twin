@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import argparse
 import datetime
+import os
 import sys
 from pathlib import Path
 
@@ -269,7 +270,7 @@ def make_ideal_speed(
     v_max_out = float(df["v_ideal_mps"].max())
     _log(
         "FR-9.4 speed",
-        f"{n_pts} points, v_mean={v_mean:.1f} v_min={v_min_out:.1f} " f"v_max={v_max_out:.1f} m/s",
+        f"{n_pts} points, v_mean={v_mean:.1f} v_min={v_min_out:.1f} v_max={v_max_out:.1f} m/s",
     )
 
     out_path = out_dir / trace / "ideal_speed.parquet"
@@ -287,7 +288,12 @@ def _build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         description="Compute ideal speed profile from reference path (FR-9.4)"
     )
-    p.add_argument("--trace", required=True, help="trace name (e.g. day2)")
+    p.add_argument(
+        "--trace",
+        default=os.environ.get("TRIP_ID"),
+        required=not os.environ.get("TRIP_ID"),
+        help="trace name (e.g. day2) (falls back to TRIP_ID env var in ECS)",
+    )
     p.add_argument("--out-dir", type=Path, default=Path("out"))
     p.add_argument(
         "--config",
