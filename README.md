@@ -337,6 +337,7 @@ Start-Process cmd.exe -ArgumentList "/c cd C:\evd && npm run dev -- --port 3101 
 | [TRD](Docs/TRD.md) | Schemas, EKF math, NFRs, toolchain |
 | [Dev Plan](Docs/DEV_PLAN.md) | Task list with DoD checklists |
 | [Living Spec](docs/LIVING_SPEC.md) | Validated learnings (VL-1 – VL-8) |
+| [System Boundary](docs/SYSTEM_BOUNDARY.md) | SoI definition · interface table (IF-1〜7) · deliberate exclusions · boundary decision checklist |
 
 ---
 
