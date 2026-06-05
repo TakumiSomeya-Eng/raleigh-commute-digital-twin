@@ -91,18 +91,20 @@ def _cmd_ingest(args: argparse.Namespace) -> int:
             import pyarrow as pa
             import pyarrow.parquet as pq
 
+            s3_key = store.s3_key("processed", args.trace, "aligned_100hz.parquet")
             table = pa.Table.from_pandas(df, preserve_index=False)
             buf = io.BytesIO()
             pq.write_table(table, buf, compression="snappy")
             buf.seek(0)
             store._s3.put_object(
                 Bucket=store._bucket,
-                Key=store.s3_key("processed", args.trace, "aligned_100hz.parquet"),
+                Key=s3_key,
                 Body=buf.getvalue(),
             )
+            out_path = f"s3://{store._bucket}/{s3_key}"
         else:
-            out_path = Path(args.out_dir) / args.trace / "aligned_100hz.parquet"
-            write_parquet(df, out_path, Aligned100Hz, trip_id=args.trace)
+            out_path = str(Path(args.out_dir) / args.trace / "aligned_100hz.parquet")
+            write_parquet(Path(out_path), df, Aligned100Hz, trip_id=args.trace)
     except SchemaValidationError as exc:
         sys.stderr.write(f"[FR-1.4 ingest] ERROR  {exc}\n")
         return StageExitCode.DATA_ERROR
@@ -112,7 +114,7 @@ def _cmd_ingest(args: argparse.Namespace) -> int:
         f"[{now}] [FR-1.5 ingest] INFO  "
         f"{len(df)} rows, {float(df['t_s'].iloc[-1]):.1f} s, "
         f"mean horiz-acc {float(df['horizontal_accuracy_m'].mean()):.1f} m  "
-        f"→ {out_path}\n"
+        f"-> {out_path}\n"
     )
     return StageExitCode.SUCCESS
 
@@ -137,7 +139,7 @@ def _cmd_fit(args: argparse.Namespace) -> int:
 
         now = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
         sys.stdout.write(
-            f"[{now}] [FR-2.1 fit] INFO  " f"{len(fits)} channels fitted for {trace!r}  → {out}\n"
+            f"[{now}] [FR-2.1 fit] INFO  {len(fits)} channels fitted for {trace!r}  → {out}\n"
         )
 
     return StageExitCode.SUCCESS
