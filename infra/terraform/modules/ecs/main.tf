@@ -28,31 +28,32 @@ locals {
 
   # Pipeline stage definitions: name -> {cpu, memory, command}
   # cpu/memory in Fargate units (256 = 0.25 vCPU, 512 = 0.5 GB)
+  # NOTE: ENTRYPOINT in Dockerfile is ["python3.11"], so command must NOT include "python".
   stages = {
     ingest = {
       cpu     = 256
       memory  = 512
-      command = ["python", "-m", "data_engine", "ingest"]
+      command = ["-m", "data_engine", "ingest"]
     }
     fuse = {
       cpu     = 512
       memory  = 1024
-      command = ["python", "scripts/py_ekf.py"]
+      command = ["scripts/py_ekf.py"]
     }
     ideal = {
       cpu     = 1024  # Valhalla needs more memory
       memory  = 2048
-      command = ["python", "-m", "ideal_driver", "run"]
+      command = ["-m", "ideal_driver", "run"]
     }
     score = {
       cpu     = 256
       memory  = 512
-      command = ["python", "-m", "scoring", "run"]
+      command = ["-m", "scoring", "run"]
     }
     report = {
       cpu     = 256
       memory  = 512
-      command = ["python", "-m", "reporting", "run"]
+      command = ["-m", "reporting", "run"]
     }
   }
 }

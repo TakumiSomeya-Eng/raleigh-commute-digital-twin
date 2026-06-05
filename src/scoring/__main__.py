@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import sys
 
-_SUBCOMMANDS = ("score",)
+_SUBCOMMANDS = ("score", "run")
 
 
 def main() -> None:
@@ -17,7 +17,10 @@ def main() -> None:
         sys.exit(1)
 
     sub = sys.argv[1]
-    sys.argv = [f"scoring {sub}"] + sys.argv[2:]
+    # "run" is an ECS alias for "score"
+    if sub == "run":
+        sub = "score"
+    sys.argv = [f"scoring {sub}", *sys.argv[2:]]
 
     if sub == "score":
         from scoring.aggregate import main as _main

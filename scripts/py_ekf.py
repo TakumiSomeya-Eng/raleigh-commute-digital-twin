@@ -13,6 +13,7 @@ import argparse
 import collections
 import datetime
 import math
+import os
 import sys
 from pathlib import Path
 
@@ -329,15 +330,21 @@ def _make_row(t: float, x: np.ndarray, P: np.ndarray, gps_px: float, gps_py: flo
 # ---------------------------------------------------------------------------
 def _build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description="Pure-Python CTRV EKF (mirrors ekf_node.cpp)")
-    p.add_argument("--trace", required=True, help="trace name, e.g. day2")
+    p.add_argument(
+        "--trace",
+        default=os.environ.get("TRIP_ID"),
+        required=not os.environ.get("TRIP_ID"),
+        help="trace name, e.g. day2 (falls back to TRIP_ID env var in ECS)",
+    )
     p.add_argument("--out-dir", type=Path, default=Path("out"))
     return p
 
 
 def main(argv: list[str] | None = None) -> None:
-    import sys as _sys  # noqa: PLC0415
+    import sys as _sys
+
     _sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
-    from storage import StorageAdapter  # noqa: PLC0415
+    from storage import StorageAdapter
 
     args = _build_parser().parse_args(argv)
     store = StorageAdapter.from_env(out_dir=args.out_dir)

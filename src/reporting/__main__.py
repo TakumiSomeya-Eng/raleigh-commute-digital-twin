@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import sys
 
-_SUBCOMMANDS = ("render", "index")
+_SUBCOMMANDS = ("render", "index", "run")
 
 
 def main() -> None:
@@ -18,7 +18,10 @@ def main() -> None:
         sys.exit(1)
 
     sub = sys.argv[1]
-    sys.argv = [f"reporting {sub}"] + sys.argv[2:]
+    # "run" is an ECS alias for "render"
+    if sub == "run":
+        sub = "render"
+    sys.argv = [f"reporting {sub}", *sys.argv[2:]]
 
     if sub == "render":
         from reporting.render import main as _main

@@ -18,16 +18,17 @@ from __future__ import annotations
 import argparse
 import datetime
 import logging
+import os
 import sys
 from pathlib import Path
 
 import yaml
+from storage import StorageAdapter
 
 from data_engine.errors import MissingRequiredChannelError, SchemaValidationError, StageExitCode
 from data_engine.ingest import parse_and_align
 from data_engine.parquet_io import write_parquet
 from data_engine.schemas import Aligned100Hz
-from storage import StorageAdapter
 
 logging.basicConfig(level=logging.INFO, format="%(message)s", stream=sys.stdout)
 logger = logging.getLogger(__name__)
@@ -42,7 +43,7 @@ def _load_config(path: Path) -> dict:  # type: ignore[type-arg]
 
 def _cmd_ingest(args: argparse.Namespace) -> int:
     """Execute the ingest pipeline (FR-1.1 through FR-1.5). S3-aware (T7.3)."""
-    import tempfile  # noqa: PLC0415
+    import tempfile
 
     cfg_path = Path(args.config) if args.config else _DEFAULT_CONFIG
     store = StorageAdapter.from_env(out_dir=Path(args.out_dir))
@@ -85,9 +86,11 @@ def _cmd_ingest(args: argparse.Namespace) -> int:
     try:
         if store.is_s3:
             # Write via StorageAdapter (S3 upload)
-            import pyarrow as pa  # noqa: PLC0415
-            import pyarrow.parquet as pq  # noqa: PLC0415
-            import io  # noqa: PLC0415
+            import io
+
+            import pyarrow as pa
+            import pyarrow.parquet as pq
+
             table = pa.Table.from_pandas(df, preserve_index=False)
             buf = io.BytesIO()
             pq.write_table(table, buf, compression="snappy")
@@ -239,8 +242,18 @@ def main(argv: list[str] | None = None) -> int:
     subs = parser.add_subparsers(dest="command")
 
     p_in = subs.add_parser("ingest", help="FR-1: CSV → aligned_100hz.parquet")
-    p_in.add_argument("--trace", required=True, help="Trip name, e.g. day2")
-    p_in.add_argument("--data-dir", required=True, help="Sensor Logger CSV directory")
+    p_in.add_argument(
+        "--trace",
+        default=os.environ.get("TRIP_ID"),
+        required=not os.environ.get("TRIP_ID"),
+        help="Trip name, e.g. day2 (falls back to TRIP_ID env var in ECS)",
+    )
+    p_in.add_argument(
+        "--data-dir",
+        default=os.environ.get("DATA_DIR", "data"),
+        required=False,
+        help="Sensor Logger CSV directory (ignored when S3_BUCKET is set)",
+    )
     p_in.add_argument("--out-dir", default="out", help="Output root (default: out)")
     p_in.add_argument("--config", default=None, help="Path to data_gen.yaml")
     p_in.add_argument("--dry-run", action="store_true", help="Print output path, do not write")

@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import argparse
 import datetime
+import os
 import sys
 import time
 from pathlib import Path
@@ -253,7 +254,7 @@ def match_trace(
 
     # Sub-sample to target Hz
     source_hz = 1.0 / float(np.median(np.diff(fused.t_s.to_numpy(dtype=float))))
-    stride = max(1, int(round(source_hz / subsample_hz)))
+    stride = max(1, round(source_hz / subsample_hz))
     sub = fused.iloc[::stride].reset_index(drop=True)
 
     t_arr = sub.t_s.to_numpy(dtype=float)
@@ -322,7 +323,7 @@ def map_match(
 
     store = StorageAdapter.from_env(out_dir=out_dir) if StorageAdapter else None
     if store and store.is_s3:
-        _log("FR-9.1 match", f"loading fused/ekf from S3 (s3=True)")
+        _log("FR-9.1 match", "loading fused/ekf from S3 (s3=True)")
         fused = store.read_parquet("fused", trace, "fused_ekf.parquet")
     else:
         fused_path = out_dir / trace / "fused_ekf.parquet"
@@ -390,7 +391,12 @@ def map_match(
 
 def _build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description="Map-match fused trajectory via Valhalla Meili")
-    p.add_argument("--trace", required=True, help="trace name (e.g. day2)")
+    p.add_argument(
+        "--trace",
+        default=os.environ.get("TRIP_ID"),
+        required=not os.environ.get("TRIP_ID"),
+        help="trace name (e.g. day2) (falls back to TRIP_ID env var in ECS)",
+    )
     p.add_argument("--out-dir", type=Path, default=Path("out"), help="output root dir")
     p.add_argument(
         "--config",

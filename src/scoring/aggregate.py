@@ -14,6 +14,7 @@ import argparse
 import datetime
 import hashlib
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -256,7 +257,12 @@ def make_score(
 
 def _build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description="Compute driver score.json (FR-10.7)")
-    p.add_argument("--trace", required=True, help="trace name (e.g. day2)")
+    p.add_argument(
+        "--trace",
+        default=os.environ.get("TRIP_ID"),
+        required=not os.environ.get("TRIP_ID"),
+        help="trace name (e.g. day2) (falls back to TRIP_ID env var in ECS)",
+    )
     p.add_argument("--filter", dest="filter_name", default="ekf", help="ekf or ukf")
     p.add_argument("--out-dir", type=Path, default=Path("out"))
     p.add_argument("--config", type=Path, default=_CONFIG_PATH, help="scoring.yaml")

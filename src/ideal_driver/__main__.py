@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import sys
 
-_SUBCOMMANDS = ("match", "ref", "speed", "traj")
+_SUBCOMMANDS = ("match", "ref", "speed", "traj", "run")
 
 
 def main() -> None:
@@ -20,7 +20,24 @@ def main() -> None:
         sys.exit(1)
 
     sub = sys.argv[1]
-    sys.argv = [f"ideal_driver {sub}"] + sys.argv[2:]
+    rest = sys.argv[2:]
+
+    if sub == "run":
+        # ECS alias: run all ideal_driver stages in sequence
+        for stage in ("match", "ref", "speed", "traj"):
+            sys.argv = [f"ideal_driver {stage}", *rest]
+            if stage == "match":
+                from ideal_driver.valhalla_client import main as _main
+            elif stage == "ref":
+                from ideal_driver.reference_path import main as _main
+            elif stage == "speed":
+                from ideal_driver.speed_profile import main as _main
+            else:
+                from ideal_driver.quintic import main as _main
+            _main()
+        return
+
+    sys.argv = [f"ideal_driver {sub}", *rest]
 
     if sub == "match":
         from ideal_driver.valhalla_client import main as _main
