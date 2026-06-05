@@ -21,11 +21,11 @@ The pipeline runs identically in two environments:
 
 ```mermaid
 flowchart LR
-  classDef input  fill:#F1F5F9,stroke:#64748B,color:#1E293B
-  classDef stage  fill:#DBEAFE,stroke:#2563EB,color:#1E3A8A
-  classDef store  fill:#F0FDF4,stroke:#16A34A,color:#14532D
-  classDef out    fill:#D1FAE5,stroke:#059669,color:#064E3B
-  classDef ext    fill:#FEF3C7,stroke:#D97706,color:#78350F
+  classDef input  fill:#F5F5F5,stroke:#555555,color:#000000
+  classDef stage  fill:#FFFFFF,stroke:#222222,color:#000000
+  classDef store  fill:#E8E8E8,stroke:#444444,color:#000000
+  classDef out    fill:#CCCCCC,stroke:#222222,color:#000000
+  classDef ext    fill:#EEEEEE,stroke:#666666,color:#000000
 
   PHONE["📱 Sensor Logger
   GPS 1Hz · IMU 100Hz"]:::input

@@ -16,14 +16,14 @@ Everything **outside** is what it consumes or interacts with — but does not co
 
 ```mermaid
 flowchart TB
-  classDef actor    fill:#F8FAFC,stroke:#94A3B8,color:#1E293B,stroke-width:1.5px
-  classDef soi      fill:#EFF6FF,stroke:#3B82F6,color:#1E3A8A,stroke-width:2px
-  classDef stage    fill:#DBEAFE,stroke:#2563EB,color:#1E3A8A,stroke-width:1px
-  classDef store    fill:#F0FDF4,stroke:#16A34A,color:#14532D,stroke-width:1px
-  classDef infra    fill:#FEF9C3,stroke:#CA8A04,color:#713F12,stroke-width:1px
-  classDef out      fill:#F0FDF4,stroke:#059669,color:#064E3B,stroke-width:2px
-  classDef excluded fill:#FEF2F2,stroke:#FCA5A5,color:#991B1B,stroke-dasharray:4,stroke-width:1.5px
-  classDef ifnode   fill:#FFFFFF,stroke:#6366F1,color:#3730A3,stroke-width:1.5px
+  classDef actor    fill:#F5F5F5,stroke:#777777,color:#000000,stroke-width:1.5px
+  classDef soi      fill:#EFEFEF,stroke:#222222,color:#000000,stroke-width:2px
+  classDef stage    fill:#FFFFFF,stroke:#333333,color:#000000,stroke-width:1px
+  classDef store    fill:#E8E8E8,stroke:#444444,color:#000000,stroke-width:1px
+  classDef infra    fill:#DDDDDD,stroke:#555555,color:#000000,stroke-width:1px
+  classDef out      fill:#CCCCCC,stroke:#222222,color:#000000,stroke-width:2px
+  classDef excluded fill:#F0F0F0,stroke:#999999,color:#555555,stroke-dasharray:4,stroke-width:1.5px
+  classDef ifnode   fill:#FFFFFF,stroke:#444444,color:#000000,stroke-width:1.5px
 
   %% ── Actors (outside SoI) ──────────────────────────────────────
   PHONE("📱 Sensor Logger
