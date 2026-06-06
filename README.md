@@ -105,6 +105,12 @@ flowchart LR
 
 Simulated on the real day2 route (~10 km, Raleigh NC OSM). Calm > Normal > Aggressive confirmed.
 
+**Video B — Animated route comparison (Folium):**
+
+<!-- markdownlint-disable MD033 -->
+<video src="docs/videos/driving_style_comparison_raleigh.mp4" controls width="100%"></video>
+<!-- markdownlint-enable MD033 -->
+
 ---
 
 ## Quickstart
