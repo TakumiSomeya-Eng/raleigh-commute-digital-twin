@@ -201,6 +201,32 @@ Six components, each penalising deviations from a smooth, law-abiding ideal:
 
 ---
 
+
+## Algorithm
+ 
+### Sensor fusion — CTRV Extended Kalman Filter
+ 
+**State vector:** `[px, py, v, ψ, ψ̇]` — ENU position, forward speed, heading, yaw rate.
+ 
+Longitudinal acceleration is a **control input** (not a state). Estimating it as a state
+degraded speed accuracy due to IMU noise; feeding it directly into the prediction step
+via `predict(dt, accel_imu)` produced better results.
+ 
+| Design choice | Rationale |
+|---|---|
+| CTRV over CV | Real turns in Raleigh commutes; constant-velocity fails on curves |
+| CTRV over CTRA | IMU longitudinal acceleration too noisy to estimate as a state |
+| EKF over UKF | Both implemented and measured; EKF cleared the RMSE gate, fewer moving parts |
+| GPS weight = reported accuracy | Each fix self-attenuates via its horizontal-accuracy field in R matrix |
+| χ² outlier gate at 99% | Rejects fixes like a 122 m-accuracy reading near an overpass |
+| Integer nanosecond timestamps | Floating-point timestamps accumulate drift over a 15-minute trip |
+| GPS heading trusted above 2 m/s only | Below 1 m/s, fall back to magnetometer; bearing is noise at rest |
+ 
+**Accuracy claim:** improvement over raw GPS, not absolute (no RTK available).
+The RTS smoother provides a soft ground truth for relative comparison.
+
+---
+
 ## Phase 1 — Local Pipeline
 
 All logic lives in `src/`. The pipeline runs via Docker Compose with three containers:
