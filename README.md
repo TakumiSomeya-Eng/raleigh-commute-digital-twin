@@ -111,6 +111,10 @@ Simulated on the real day2 route (~10 km, Raleigh NC OSM). Calm > Normal > Aggre
 <video src="docs/videos/sumo_3styles_raleigh.mp4" controls width="100%"></video>
 <!-- markdownlint-enable MD033 -->
 
+**Video B — Folium animated route comparison (calm / normal / aggressive):**
+
+![Folium animation — 3 driving styles on day2 route, Raleigh NC](docs/screenshots/folium_animation_preview.png)
+
 ---
 
 ## Quickstart

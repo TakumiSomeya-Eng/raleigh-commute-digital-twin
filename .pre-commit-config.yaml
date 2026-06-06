@@ -10,7 +10,7 @@ repos:
     hooks:
       - id: check-added-large-files
         args: ["--maxkb=2048"]
-        exclude: ^docs/videos/
+        exclude: ^docs/(videos|screenshots)/
       - id: trailing-whitespace
       - id: end-of-file-fixer
 
