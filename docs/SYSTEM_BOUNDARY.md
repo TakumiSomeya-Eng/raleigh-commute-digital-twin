@@ -16,13 +16,13 @@ Everything **outside** is what it consumes or interacts with — but does not co
 
 ![System Architecture — Raleigh Commute Digital Twin](Image_system-diagram.png)
 
-**読み方:**
+**How to read:**
 
-- 外側の矩形 = SoI境界。内側が責任範囲、外側は消費・連携するが制御しない。
-- **IF-1**: Sensor Logger → ingest（7 CSV、スキーマ検証済み）
-- **IF-2**: Passenger → Pipeline（S3アップロード → EventBridgeトリガー）
-- **IF-3**: Pipeline → Passenger（SNS email、スコア + レポートリンク）
-- **Excluded（破線）**: EKS（$72/月 > $50上限）、Lambda（15分制限）、Mobile App（AWS Console代替）
+- Outer rectangle = SoI boundary. Inside = owned and responsible for. Outside = consumed or interacted with, but not controlled.
+- **IF-1**: Sensor Logger → ingest (7 CSV files, schema-validated)
+- **IF-2**: Passenger → Pipeline (S3 upload → EventBridge trigger)
+- **IF-3**: Pipeline → Passenger (SNS email with score + report link)
+- **Excluded (dashed)**: EKS ($72/month > $50 ceiling), Lambda (15-min hard limit), Mobile App (AWS Console covers upload)
 
 ---
 
