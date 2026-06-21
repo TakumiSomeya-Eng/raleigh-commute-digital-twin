@@ -19,53 +19,9 @@ The pipeline runs identically in two environments:
 | **Phase 1 — Local** | `make score TRACE=day2` | Docker Compose on laptop |
 | **Phase 2 — Cloud** | Upload CSVs to S3 | AWS Fargate + Step Functions |
 
-```mermaid
-flowchart LR
-  classDef input  fill:#F5F5F5,stroke:#555555,color:#000000
-  classDef stage  fill:#FFFFFF,stroke:#222222,color:#000000
-  classDef store  fill:#E8E8E8,stroke:#444444,color:#000000
-  classDef out    fill:#CCCCCC,stroke:#222222,color:#000000
-  classDef ext    fill:#EEEEEE,stroke:#666666,color:#000000
+![System Architecture — Raleigh Commute Digital Twin](docs/Image_system-diagram.png)
 
-  PHONE["📱 Sensor Logger
-  GPS 1Hz · IMU 100Hz"]:::input
-
-  subgraph PIPELINE["Pipeline  (Docker Compose  or  ECS Fargate)"]
-    direction LR
-    IN["⚙️ ingest
-    CSV → Parquet
-    100 Hz aligned"]:::stage
-    FU["🔀 fuse
-    EKF
-    GPS + IMU"]:::stage
-    ID["📍 ideal
-    Valhalla
-    map-match + traj"]:::stage
-    SC["🏆 score
-    6 components
-    → score.json"]:::stage
-    RE["📄 report
-    Jinja2 + Folium
-    → report.html"]:::stage
-    IN --> FU --> ID --> SC --> RE
-  end
-
-  VAL["🗺️ Valhalla
-  self-hosted
-  OSM tiles"]:::ext
-
-  S3[("S3
-  processed/
-  ideal/scores/")]:::store
-  OUT(["score.json
-  69.6 / 100
-  tip 15 %"]):::out
-
-  PHONE -->|"7 CSV files"| IN
-  ID <-->|"HTTP:8002"| VAL
-  PIPELINE -.->|"Phase 2: read/write"| S3
-  SC --> OUT
-```
+> Full boundary definition → [docs/SYSTEM_BOUNDARY.md](docs/SYSTEM_BOUNDARY.md)
 
 ### What each phase adds
 

@@ -14,140 +14,15 @@ Everything **outside** is what it consumes or interacts with — but does not co
 
 ## Full System Picture
 
-```mermaid
-flowchart TB
-  classDef actor    fill:#F5F5F5,stroke:#777777,color:#000000,stroke-width:1.5px
-  classDef soi      fill:#EFEFEF,stroke:#222222,color:#000000,stroke-width:2px
-  classDef stage    fill:#FFFFFF,stroke:#333333,color:#000000,stroke-width:1px
-  classDef store    fill:#E8E8E8,stroke:#444444,color:#000000,stroke-width:1px
-  classDef infra    fill:#DDDDDD,stroke:#555555,color:#000000,stroke-width:1px
-  classDef out      fill:#CCCCCC,stroke:#222222,color:#000000,stroke-width:2px
-  classDef excluded fill:#F0F0F0,stroke:#999999,color:#555555,stroke-dasharray:4,stroke-width:1.5px
-  classDef ifnode   fill:#FFFFFF,stroke:#444444,color:#000000,stroke-width:1.5px
+![System Architecture — Raleigh Commute Digital Twin](Image_system-diagram.png)
 
-  %% ── Actors (outside SoI) ──────────────────────────────────────
-  PHONE("📱 Sensor Logger
-[External App]
-Records GPS + IMU
-during Uber ride"):::actor
-  PASSENGER("🧑 Passenger
-[Human Actor]
-Uploads CSVs
-Receives scored report"):::actor
-  DRIVER("🚗 Uber Driver
-[Human — no interface]
-Subject of scoring
-not notified by SoI"):::actor
-  OSM("🗺️ OpenStreetMap
-[External Data]
-Road network +
-speed limits"):::actor
-  AWS_PLATFORM("☁️ AWS Platform
-[Environment]
-ECS · S3 · EventBridge
-Step Functions · SNS"):::infra
+**読み方:**
 
-  %% ── Interfaces (boundary crossings) ──────────────────────────
-  IF1("IF-1
-7 CSV files
-Location · Accel · Gyro
-Gravity · Orient · Mag · Total"):::ifnode
-  IF2("IF-2
-S3 upload
-raw/{trip_id}/*.csv
-via AWS Console"):::ifnode
-  IF3("IF-3
-SNS email
-score + report link
-+ error details"):::ifnode
-  IF5("IF-5 / IF-6
-GPS trace → Valhalla
-matched route ← Valhalla"):::ifnode
-
-  %% ── System of Interest (SoI) ─────────────────────────────────
-  subgraph SOI["  System of Interest — Raleigh Commute Digital Twin  "]
-    direction TB
-
-    subgraph PIPELINE["  Pipeline (ECS Fargate · Step Functions)  "]
-      direction LR
-      INGEST("⚙️ ingest
-CSV → Parquet
-100 Hz aligned"):::stage
-      FUSE("🔀 fuse
-py_ekf.py
-GPS + IMU → EKF"):::stage
-      IDEAL("📍 ideal
-Valhalla
-map-match"):::stage
-      SCORE("🏆 score
-6 components
-→ score.json"):::stage
-      REPORT("📄 report
-Jinja2 + Folium
-→ report.html"):::stage
-      INGEST --> FUSE --> IDEAL --> SCORE --> REPORT
-    end
-
-    subgraph STORAGE["  S3 Prefix Layout  "]
-      direction LR
-      S_RAW("raw/
-{trip_id}/"):::store
-      S_PROC("processed/
-{trip_id}/"):::store
-      S_FUSED("fused/
-{trip_id}/"):::store
-      S_IDEAL("ideal/
-{trip_id}/"):::store
-      S_SCORE("scores/
-{trip_id}/"):::store
-      S_REPORT("reports/
-{trip_id}/"):::store
-    end
-
-    subgraph VALHALLA_CONTAINER["  Container: Valhalla (self-hosted)  "]
-      VAL("🗺️ Map matching
-OSM tiles bundled
-No external API calls"):::stage
-    end
-
-    INGEST --> S_RAW
-    INGEST --> S_PROC
-    FUSE --> S_FUSED
-    IDEAL --> S_IDEAL
-    SCORE --> S_SCORE
-    REPORT --> S_REPORT
-    IDEAL <--> VAL
-  end
-
-  %% ── Excluded (deliberate non-SoI) ────────────────────────────
-  EKS("❌ EKS
-$72/month
-> $50 ceiling"):::excluded
-  LAMBDA("❌ Lambda
-15-min limit
-day2 = 14.8 min"):::excluded
-  MOBILEAPP("❌ Mobile App
-AWS Console
-covers upload"):::excluded
-
-  %% ── Output ───────────────────────────────────────────────────
-  TIP("💰 Tip Decision
-[Human — outside SoI]
-Passenger decides
-SoI proposes only"):::out
-
-  %% ── Connections ──────────────────────────────────────────────
-  PHONE -->|"records"| IF1
-  IF1 -->|"schema-validated"| INGEST
-  PASSENGER -->|"uploads"| IF2
-  IF2 -->|"EventBridge trigger"| PIPELINE
-  OSM -->|"tiles bundled
-at build time"| VAL
-  PIPELINE -->|"SNS notify"| IF3
-  IF3 -->|"email"| PASSENGER
-  SCORE -->|"score.json"| TIP
-  AWS_PLATFORM -.->|"provides APIs"| SOI
-```
+- 外側の矩形 = SoI境界。内側が責任範囲、外側は消費・連携するが制御しない。
+- **IF-1**: Sensor Logger → ingest（7 CSV、スキーマ検証済み）
+- **IF-2**: Passenger → Pipeline（S3アップロード → EventBridgeトリガー）
+- **IF-3**: Pipeline → Passenger（SNS email、スコア + レポートリンク）
+- **Excluded（破線）**: EKS（$72/月 > $50上限）、Lambda（15分制限）、Mobile App（AWS Console代替）
 
 ---
 
